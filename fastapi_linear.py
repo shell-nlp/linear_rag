@@ -102,7 +102,6 @@ def retrieve_documents(payload: RetrievePayload):
     检索接口
     """
     try:
-        # 转换为原本的 list[dict] 格式
         questions = payload.questions
         results = state.rag_model.retrieve(
             questions, 
