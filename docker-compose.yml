@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  rag-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rag-project:latest
+    container_name: my-rag-container
+    
+    # 1. 端口映射：左边是宿主机端口，右边是容器内 main.py 监听的端口
+    # 如果你的 main.py 启动的是 8000 端口，请修改如下：
+    ports:
+      - "12124:12124"
+    
+    # 2. GPU 配置（这是 CUDA 项目必须的）
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all # 使用所有显卡，或者写 1 表示使用单卡
+              capabilities: [gpu]
+
+    # 3. 环境变量
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+      # 如果有 API Key 之类的也可以写在这里
+      # - OPENAI_API_KEY=sk-xxx
+
+    # 4. 挂载持久化目录（建议）
+    # 如果你的项目有日志、上传的文档或本地数据库（如 ChromaDB/FAISS），建议挂载出来
+    # volumes:
+    #   - ./logs:/app/logs
+    #   - ./data:/app/data
+
+    # 5. 重启策略
+    restart: always

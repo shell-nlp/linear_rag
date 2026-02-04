@@ -65,7 +65,7 @@ class Customize_Elastic():
             
             # 动态将所有元数据写入 source
             # 即使是 None 也会被写入为 null，方便后续知晓该字段存在
-            meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image"]
+            meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image","file_path","bucket_name"]
             for key in meta_keys:
                 source_data[key] = doc_info.get(key)
 
@@ -126,7 +126,7 @@ class Customize_Elastic():
                 }
             },
             "size": len(hash_ids),
-            "_source": ["hash_id","text", "file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image"]
+            "_source": ["hash_id","text", "file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image","file_path","bucket_name"]
         }
         
         try:
