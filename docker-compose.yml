@@ -1,39 +1,31 @@
 version: '3.8'
 
 services:
-  rag-app:
+  linear-rag:
     build:
       context: .
       dockerfile: Dockerfile
-    image: rag-project:latest
-    container_name: my-rag-container
+    # 镜像名称保持与你之前的习惯接近
+    image: linear-rag:latest
+    container_name: linearrag-service
     
-    # 1. 端口映射：左边是宿主机端口，右边是容器内 main.py 监听的端口
-    # 如果你的 main.py 启动的是 8000 端口，请修改如下：
-    ports:
-      - "12124:12124"
+    # 对应 --network host
+    # 注意：使用 host 模式后，ports 映射会被忽略，容器直接使用 12124 端口
+    network_mode: "host"
     
-    # 2. GPU 配置（这是 CUDA 项目必须的）
+    # 对应 --restart always
+    restart: always
+    
+    # 对应 --gpus all
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: all # 使用所有显卡，或者写 1 表示使用单卡
+              count: all
               capabilities: [gpu]
 
-    # 3. 环境变量
+    # 环境变量配置
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1
-      # 如果有 API Key 之类的也可以写在这里
-      # - OPENAI_API_KEY=sk-xxx
-
-    # 4. 挂载持久化目录（建议）
-    # 如果你的项目有日志、上传的文档或本地数据库（如 ChromaDB/FAISS），建议挂载出来
-    # volumes:
-    #   - ./logs:/app/logs
-    #   - ./data:/app/data
-
-    # 5. 重启策略
-    restart: always
