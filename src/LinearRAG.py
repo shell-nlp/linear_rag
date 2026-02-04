@@ -92,7 +92,7 @@ class LinearRAG:
                 index_name=index_names, 
                 knn=knn_query,
                 size=size,
-                _source=["hash_id","text", "file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image"]
+                _source=["hash_id","text", "file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image","file_path","bucket_name"]
             )
             return res
         except Exception as e:
@@ -569,7 +569,6 @@ class LinearRAG:
         # 向量入库
         _,all_hash_id_to_entity = self.insert_text(entity_node_info,self.embedding_model,self.config.batch_size, "entity",kb_name,self.es_client)
         
-        
         # 图构建
         node_to_node_stats = self.add_entity_to_passage_edges(new_passage_hash_id_to_entities,new_hash_id_to_passage,all_hash_id_to_entity,node_to_node_stats)
         node_to_node_stats = self.add_adjacent_passage_edges(all_hash_id_to_passage,node_to_node_stats)
@@ -913,7 +912,7 @@ class LinearRAG:
         text_only_map = {} 
 
         # 需要提取的元数据字段列表
-        meta_fields = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image"]
+        meta_fields = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image","file_path","bucket_name"]
 
         # 2. 遍历文本，组装数据
         for i, text in enumerate(text_list):

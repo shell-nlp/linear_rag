@@ -86,9 +86,11 @@ def main():
     "content_table":[],
     "content_image":[],
     "ori_text": document_list,
-    "file_name":["密云水库项目","密云水库项目2"],
+    "file_name":["密云水库项目.pdf","密云水库项目2.pdf"],
     "file_id": ["123","1234"],
-    "segment_id":[1,1] 
+    "segment_id":[1,1],
+    "file_path":["密云水库项目.pdf","密云水库项目2.pdf"],
+    "bucket_name":["111","111"] 
     }
     
     rag_model = LinearRAG(global_config=config, es_client=es_client, neo4j_driver=neo4j_driver)
