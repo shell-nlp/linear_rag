@@ -63,11 +63,19 @@ class Customize_Elastic():
                 "type": node_type,
             }
             
-            # 动态将所有元数据写入 source
-            # 即使是 None 也会被写入为 null，方便后续知晓该字段存在
-            meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image","file_path","bucket_name"]
+            # 定义需要提取的元数据键名
+            meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image", "file_path", "bucket_name"]
+            
+            # 1. 动态将元数据写入 source 根层级（保留原有逻辑）
+            # 2. 同时构造一个 metadata 字典对象
+            metadata_obj = {}
             for key in meta_keys:
-                source_data[key] = doc_info.get(key)
+                value = doc_info.get(key)
+                source_data[key] = value      # 写入根节点
+                metadata_obj[key] = value    # 写入 metadata 对象
+                
+            # 将 metadata 作为一个整体字段存入
+            source_data["metadata"] = metadata_obj
 
             action = {
                 "_index": index_name,
