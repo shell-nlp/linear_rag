@@ -68,7 +68,9 @@ class Customize_Elastic():
             
             # 1. 动态将元数据写入 source 根层级（保留原有逻辑）
             # 2. 同时构造一个 metadata 字典对象
-            metadata_obj = {}
+            metadata_obj = {
+                "type": node_type
+            }
             for key in meta_keys:
                 value = doc_info.get(key)
                 source_data[key] = value      # 写入根节点
