@@ -33,5 +33,4 @@ RUN uv pip install https://github.com/explosion/spacy-models/releases/download/z
 COPY . .
 
 # 7. 启动命令
-# 使用 uv run 或者直接 python (因为 PATH 已经设置好了)
-CMD ["python", "main.py"]
+CMD ["sw-python", "run", "python", "main.py"]
