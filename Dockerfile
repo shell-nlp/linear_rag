@@ -26,7 +26,7 @@ RUN uv venv
 COPY requirements.txt .
 # 安装依赖
 RUN uv pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-RUN uv pip install https://github.com/explosion/spacy-models/releases/download/zh_core_web_md-3.7.0/zh_core_web_md-3.7.0-py3-none-any.whl
+RUN uv pip install https://gitee.com/hbhumbrella/test/raw/master/zh_core_web_md-3.7.0-py3-none-any.whl
 
 
 # 6. 复制项目代码
