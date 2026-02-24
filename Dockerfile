@@ -28,8 +28,8 @@ COPY requirements.txt .
 RUN uv pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 注意：构建命令必须在 /home/dev/huangbinghan/LinearRAG-main 目录下执行
-COPY /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages/zh_core_web_md /app/.venv/lib/python3.12/site-packages/zh_core_web_md
-COPY /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages/zh_core_web_md-3.7.0.dist-info /app/.venv/lib/python3.12/site-packages/zh_core_web_md-3.7.0.dist-info
+COPY .venv/lib/python3.12/site-packages/zh_core_web_md /app/.venv/lib/python3.12/site-packages/zh_core_web_md
+COPY .venv/lib/python3.12/site-packages/zh_core_web_md-3.7.0.dist-info /app/.venv/lib/python3.12/site-packages/zh_core_web_md-3.7.0.dist-info
 
 # 6. 复制项目代码
 COPY . .
