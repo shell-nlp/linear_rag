@@ -29,3 +29,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1
+      - SW_AGENT_NAME=linearrag-service
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=192.168.102.22:11807
+      - SW_AGENT_PROTOCOL=grpc
+      - SW_AGENT_LOGGING_LEVEL=INFO
