@@ -11,9 +11,7 @@ services:
     volumes:
       # 【关键：宿主机路径:容器路径】
       # 挂载模型本体
-      - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages/zh_core_web_md:/app/.venv/lib/python3.12/site-packages/zh_core_web_md:ro
-      # 挂载模型元数据 (ro 表示只读，更安全)
-      - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages/zh_core_web_md-3.8.0.dist-info:/app/.venv/lib/python3.12/site-packages/zh_core_web_md-3.8.0.dist-info:ro
+      - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages:/app/.venv/lib/python3.12/site-packages:ro
 
     # 对应 --network host
     # 注意：使用 host 模式后，ports 映射会被忽略，容器直接使用 12124 端口
