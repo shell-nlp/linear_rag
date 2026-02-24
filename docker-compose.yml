@@ -5,12 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # 镜像名称保持与你之前的习惯接近
     image: linear-rag:latest
     container_name: linearrag-service
     volumes:
       # 【关键：宿主机路径:容器路径】
-      # 挂载模型本体
+      # 挂载
       - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages:/app/.venv/lib/python3.12/site-packages:ro
 
     # 对应 --network host

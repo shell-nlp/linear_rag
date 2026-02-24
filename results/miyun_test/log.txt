@@ -1,6 +1,0 @@
-2026-02-04 15:32:03,243 - INFO - Initializing LinearRAG with config: LinearRAGConfig(embedding_model=<src.embedding.LocalOpenAIEmbeddingModel object at 0x7fc35e22cad0>, chunk_token_size=1000, chunk_overlap_token_size=100, spacy_model='zh_core_web_md', working_dir='./import_qwen_new', batch_size=128, max_workers=16, retrieval_top_k=5, max_iterations=3, top_k_sentence=1, passage_ratio=1.5, passage_node_weight=0.05, damping=0.5, iteration_threshold=0.5)
-2026-02-04 15:32:08,141 - WARNING - 索引 hh_test 不存在
-2026-02-04 15:32:08,374 - INFO - 索引 hh_test 创建成功
-2026-02-04 15:58:12,614 - INFO - Initializing LinearRAG with config: LinearRAGConfig(embedding_model=<src.embedding.LocalOpenAIEmbeddingModel object at 0x7f40c905e870>, chunk_token_size=1000, chunk_overlap_token_size=100, spacy_model='zh_core_web_md', working_dir='./import_qwen_new', batch_size=128, max_workers=16, retrieval_top_k=5, max_iterations=3, top_k_sentence=1, passage_ratio=1.5, passage_node_weight=0.05, damping=0.5, iteration_threshold=0.5)
-2026-02-04 15:58:17,397 - WARNING - 索引 hh_test 不存在
-2026-02-04 15:58:17,620 - INFO - 索引 hh_test 创建成功
