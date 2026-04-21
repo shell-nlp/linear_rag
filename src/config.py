@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+import os
+
+
 @dataclass
 class LinearRAGConfig:
     embedding_model: str = "all-mpnet-base-v2"
@@ -15,3 +18,14 @@ class LinearRAGConfig:
     passage_node_weight: float = 0.05
     damping: float = 0.5
     iteration_threshold: float = 0.5
+
+
+LLM_API_KEY = os.getenv("LLM_API_KEY", "sk")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://192.168.102.19:8082/v1")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "qwen3")
+EMBEDDING_API_URL = os.getenv(
+    "EMBEDDING_API_URL", "http://192.168.102.19:8082/v1/embeddings"
+)
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "qwen3-embedding")
+SPACY_MODEL = os.getenv("SPACY_MODEL", "zh_core_web_md")
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "16"))
