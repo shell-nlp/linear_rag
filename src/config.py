@@ -35,3 +35,8 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4j@2025")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
+
+# minio
+minio_service_addresses = os.getenv("minio_service_addresses", "192.168.102.19:9001")
+minio_access_key = os.getenv("minio_access_key", "minioadmin")
+minio_secret_key = os.getenv("minio_secret_key", "minioadmin")
