@@ -1,25 +1,31 @@
+import logging
 import os
 import warnings
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-import uvicorn
 from contextlib import asynccontextmanager
-import logging
+from typing import Any, Dict, List
+
+import uvicorn
+from elasticsearch import Elasticsearch
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
 from src.config import (
-    LinearRAGConfig,
-    LLM_API_KEY,
-    LLM_BASE_URL,
     EMBEDDING_API_URL,
     EMBEDDING_MODEL_NAME,
-    SPACY_MODEL,
+    LLM_API_KEY,
+    LLM_BASE_URL,
     MAX_WORKERS,
+    NEO4J_DATABASE,
+    NEO4J_PASSWORD,
+    NEO4J_URI,
+    NEO4J_USER,
+    SPACY_MODEL,
+    LinearRAGConfig,
 )
+from src.embedding import LocalOpenAIEmbeddingModel
+from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
 from src.utils import setup_logging
-from elasticsearch import Elasticsearch
-from src.graphs_utils.neo4j_db import Neo4jGraph
-from src.embedding import LocalOpenAIEmbeddingModel
 
 warnings.filterwarnings("ignore")
 
@@ -67,10 +73,10 @@ async def lifespan(app: FastAPI):
     )
 
     neo4j_driver = Neo4jGraph(
-        uri="bolt://localhost:7687",
-        user="neo4j",
-        password="neo4j@2025",
-        database="neo4j",
+        uri=NEO4J_URI,
+        user=NEO4J_USER,
+        password=NEO4J_PASSWORD,
+        database=NEO4J_DATABASE,
     )
 
     config = LinearRAGConfig(

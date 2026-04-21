@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 
 @dataclass
@@ -29,3 +29,9 @@ EMBEDDING_API_URL = os.getenv(
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "qwen3-embedding")
 SPACY_MODEL = os.getenv("SPACY_MODEL", "zh_core_web_md")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "16"))
+
+# Neo4j
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4j@2025")
+NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
