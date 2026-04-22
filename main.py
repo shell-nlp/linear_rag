@@ -21,6 +21,9 @@ from src.config import (
     NEO4J_USER,
     SPACY_MODEL,
     LinearRAGConfig,
+    es_password,
+    es_url,
+    es_user,
 )
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.graphs_utils.neo4j_db import Neo4jGraph
@@ -68,9 +71,7 @@ async def lifespan(app: FastAPI):
 
     embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
-    es_client = Elasticsearch(
-        ["http://localhost:9200"], basic_auth=("elastic", "elastic@2024")
-    )
+    es_client = Elasticsearch([es_url], basic_auth=(es_user, es_password))
 
     neo4j_driver = Neo4jGraph(
         uri=NEO4J_URI,
