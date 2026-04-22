@@ -3,29 +3,27 @@
 import os
 import warnings
 
-from elasticsearch import Elasticsearch
-
 from src.config import (
     EMBEDDING_API_URL,
     EMBEDDING_MODEL_NAME,
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_MODEL_NAME,
+    MAX_WORKERS,
     NEO4J_DATABASE,
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USER,
+    SPACY_MODEL,
     LinearRAGConfig,
     es_password,
     es_url,
     es_user,
-    MAX_WORKERS,
-    SPACY_MODEL,
 )
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
-from src.utils import setup_logging
+from src.utils import get_es_client, setup_logging
 
 warnings.filterwarnings("ignore")
 
@@ -61,7 +59,7 @@ def main():
 
     print(f"初始化LLM客户端 (模型: {LLM_MODEL_NAME})")
 
-    es_client = Elasticsearch([es_url], basic_auth=(es_user, es_password))
+    es_client = get_es_client()
 
     neo4j_driver = Neo4jGraph(
         uri=NEO4J_URI,

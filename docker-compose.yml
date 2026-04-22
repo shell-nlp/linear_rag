@@ -41,6 +41,7 @@ services:
       - LLM_MODEL_NAME=qwen3
       - EMBEDDING_API_URL=http://192.168.102.19:8082/v1/embeddings
       - EMBEDDING_MODEL_NAME=qwen3-embedding
+      - embdding_dim=1024
       - SPACY_MODEL=zh_core_web_md
       - MAX_WORKERS=16
       - NEO4J_URI=bolt://localhost:7687

@@ -27,6 +27,7 @@ EMBEDDING_API_URL = os.getenv(
     "EMBEDDING_API_URL", "http://192.168.102.19:8082/v1/embeddings"
 )
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "qwen3-embedding")
+embdding_dim = int(os.getenv("embdding_dim", "1024"))
 SPACY_MODEL = os.getenv("SPACY_MODEL", "zh_core_web_md")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "16"))
 

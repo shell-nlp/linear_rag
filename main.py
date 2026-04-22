@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import warnings
@@ -5,9 +6,9 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
 import uvicorn
-from elasticsearch import Elasticsearch
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from loguru import logger
+from pydantic import BaseModel, Field
 
 from src.config import (
     EMBEDDING_API_URL,
@@ -21,18 +22,42 @@ from src.config import (
     NEO4J_USER,
     SPACY_MODEL,
     LinearRAGConfig,
-    es_password,
-    es_url,
-    es_user,
+    embdding_dim,
 )
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
-from src.utils import setup_logging
+from src.utils import get_es_client, setup_logging
+
+default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
+"mappings": {"properties": 
+{
+"content_image": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"content_pages_number": {"type": "long"}, "file_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"file_name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"metadata": {"properties": {"content_image": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"content_pages_number": {"type": "long"}, 
+"file_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"file_name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"parent_text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"segment_id": {"type": "long"}, 
+"shared_tenant_id_list": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"state": {"type": "boolean"}, "tenant_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}}, 
+"parent_text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"segment_id": {"type": "long"}, 
+"shared_tenant_id_list": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"state": {"type": "boolean"}, "tenant_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
+"vector": {"type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine"}}}}"""
+
+default_settings = json.loads(default_settings)
+default_settings["mappings"]["properties"]["vector"]["dims"] = embdding_dim
 
 warnings.filterwarnings("ignore")
 
-logger = logging.getLogger(__name__)
+
+es_client = get_es_client()
 
 
 class IndexPayload(BaseModel):
@@ -71,7 +96,7 @@ async def lifespan(app: FastAPI):
 
     embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
-    es_client = Elasticsearch([es_url], basic_auth=(es_user, es_password))
+    es_client = get_es_client()
 
     neo4j_driver = Neo4jGraph(
         uri=NEO4J_URI,
@@ -146,6 +171,39 @@ def delete_files(payload: DeletePayload):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class DeleteKBRequest(BaseModel):
+    index_name: str = Field(description="知识库的索引名称")
+
+
+# 删除知识库索引
+@app.post("/delete_knowledgebase")
+def delete_knowledgebase(request: DeleteKBRequest):
+    """
+    删除知识库接口
+    """
+    logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
+    es_client.indices.delete(index=request.index_name, ignore_unavailable=True)
+    return {
+        "status": "success",
+        "message": f"Knowledge base {request.index_name} deleted",
+    }
+
+
+class CreateKBRequest(BaseModel):
+    index_name: str = Field(description="知识库的索引名称")
+
+
+@app.post("/create_knowledgebase")
+def create_knowledgebase(request: CreateKBRequest):
+    """创建知识库"""
+    logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
+    es_client.indices.create(index=request.index_name, body=default_settings)
+    return {
+        "status": "success",
+        "message": f"Knowledge base {request.index_name} created",
+    }
 
 
 @app.get("/health")
