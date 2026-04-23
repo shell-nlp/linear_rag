@@ -4,7 +4,7 @@ services:
   hubeirs-rag:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.copy
     image: hubeirs-rag:latest
     container_name: hubeirs-rag-service
     # 对应 --network host
@@ -52,4 +52,8 @@ services:
       - minio_service_addresses=192.168.102.19:9001
       - minio_access_key=minioadmin
       - minio_secret_key=minioadmin
+      # Elasticsearch 配置
+      - es_url=http://192.168.102.19:9200
+      - es_user=elastic
+      - es_password=elastic@2024
     command: ["sw-python", "run", "python", "main.py"]

@@ -979,4 +979,4 @@ class PDFParser:
 if __name__ == "__main__":
     pdf_parser = PDFParser(bucket_name="111", file_path="星邺投标文件定稿.pdf")
     docs = pdf_parser.get_chunk()
-    print(docs)
+    print(docs[0])

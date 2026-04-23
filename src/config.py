@@ -32,7 +32,7 @@ SPACY_MODEL = os.getenv("SPACY_MODEL", "zh_core_web_md")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "16"))
 
 # Neo4j
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://192.168.102.19:17687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4j@2025")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
@@ -43,6 +43,6 @@ minio_access_key = os.getenv("minio_access_key", "minioadmin")
 minio_secret_key = os.getenv("minio_secret_key", "minioadmin")
 
 # es
-es_url = os.getenv("es_url", "http://localhost:9200")
+es_url = os.getenv("es_url", "http://192.168.102.19:9200")
 es_user = os.getenv("es_user", "elastic")
 es_password = os.getenv("es_password", "elastic@2024")

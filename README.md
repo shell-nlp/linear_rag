@@ -20,4 +20,4 @@ python -m spacy download zh_core_web_md
 
 # docker 部署
 docker build -t hubeirs-rag-base:v1 .
-docker-compose up -d
+docker-compose up -d --build --force-recreate

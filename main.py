@@ -27,6 +27,7 @@ from src.config import (
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
+from src.text_splitter import PDFParser
 from src.utils import get_es_client, setup_logging
 
 default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
@@ -61,8 +62,10 @@ es_client = get_es_client()
 
 
 class IndexPayload(BaseModel):
-    kb_name: str
-    passages: Dict[str, List[Any]]
+    kb_name: str = Field(description="知识库索引名称")
+    bucket_name: str = Field(description="MinIO 桶名称")
+    file_path: str = Field(description="MinIO 文件路径")
+    file_id: str | None = Field(default=None, description="文件 ID，可选")
 
 
 class RetrievePayload(BaseModel):
@@ -81,6 +84,50 @@ class AppState:
 
 
 state = AppState()
+
+
+def documents_to_passages(documents: List[Any]) -> Dict[str, List[Any]]:
+    passages: Dict[str, List[Any]] = {
+        "text": [],
+        "pages_number": [],
+        "content_table": [],
+        "content_image": [],
+        "ori_text": [],
+        "file_name": [],
+        "file_id": [],
+        "segment_id": [],
+        "file_path": [],
+        "bucket_name": [],
+    }
+
+    for doc in documents:
+        metadata = getattr(doc, "metadata", {}) or {}
+        text = getattr(doc, "page_content", "") or metadata.get("text", "")
+        passages["text"].append(text)
+        passages["pages_number"].append(metadata.get("pages_number"))
+        passages["content_table"].append(metadata.get("content_table") or [])
+        passages["content_image"].append(metadata.get("content_image") or [])
+        passages["ori_text"].append(metadata.get("ori_text") or text)
+        passages["file_name"].append(metadata.get("file_name"))
+        passages["file_id"].append(metadata.get("file_id"))
+        passages["segment_id"].append(metadata.get("segment_id"))
+        passages["file_path"].append(metadata.get("file_path"))
+        passages["bucket_name"].append(metadata.get("bucket_name"))
+
+    return passages
+
+
+def resolve_index_passages(payload: IndexPayload) -> Dict[str, List[Any]]:
+    parser = PDFParser(
+        bucket_name=payload.bucket_name,
+        file_path=payload.file_path,
+        file_id=payload.file_id,
+    )
+    documents = parser.get_chunk()
+    passages = documents_to_passages(documents)
+    if not passages["text"]:
+        raise HTTPException(status_code=400, detail="PDFParser did not return chunks")
+    return passages
 
 
 @asynccontextmanager
@@ -129,11 +176,19 @@ def index_documents(payload: IndexPayload):
     建立索引接口
     """
     try:
-        state.rag_model.index(passages=payload.passages, kb_name=payload.kb_name)
+        passages = resolve_index_passages(payload)
+        state.rag_model.index(passages=passages, kb_name=payload.kb_name)
+        file_ids = sorted(
+            {str(file_id) for file_id in passages.get("file_id", []) if file_id}
+        )
         return {
             "status": "success",
             "message": f"Successfully indexed into {payload.kb_name}",
+            "chunk_count": len(passages.get("text", [])),
+            "file_ids": file_ids,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
 
