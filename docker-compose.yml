@@ -4,19 +4,16 @@ services:
   hubeirs-rag:
     build:
       context: .
-      dockerfile: Dockerfile.copy
+      dockerfile: Dockerfile
     image: hubeirs-rag:latest
     container_name: hubeirs-rag-service
-
-    volumes:
-      - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages:/app/.venv/lib/python3.12/site-packages:ro
-
     # 对应 --network host
     # 注意：使用 host 模式后，ports 映射会被忽略，容器直接使用 12125 端口
-    network_mode: "host"
-    
+    # network_mode: "host"
     # 对应 --restart always
     restart: always
+    ports:
+      - 12125:12125
     
     # 对应 --gpus all
     deploy:
@@ -47,7 +44,7 @@ services:
       - SPACY_MODEL=zh_core_web_md
       - MAX_WORKERS=16
       # Neo4j 配置
-      - NEO4J_URI=bolt://localhost:7687
+      - NEO4J_URI=bolt://192.168.102.19:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=neo4j@2025
       - NEO4J_DATABASE=neo4j
@@ -55,3 +52,4 @@ services:
       - minio_service_addresses=192.168.102.19:9001
       - minio_access_key=minioadmin
       - minio_secret_key=minioadmin
+    command: ["sw-python", "run", "python", "main.py"]

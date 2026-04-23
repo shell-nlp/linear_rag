@@ -15,19 +15,23 @@ dependencies = [
     "langchain-text-splitters>=1.1.2",
     "loguru==0.7.3",
     "neo4j==6.0.3",
-    "numpy==2.4.0",
+    "numpy<=1.26.4",
     "openai==2.14.0",
-    "pandas>=3.0.2",
+    "pandas<=3",
     "pdfplumber>=0.11.9",
     "pydantic==2.12.5",
     "pymupdf>=1.27.2.2",
     "pypdf2>=3.0.1",
     "python-igraph==1.0.0",
     "requests==2.32.5",
-    "spacy==3.8.11",
+    "spacy==3.7.0",
     "uvicorn==0.40.0",
+    "zh-core-web-md",
 ]
 
 [[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple/"
 default = true
+
+[tool.uv.sources]
+zh-core-web-md = { path = "asset/zh_core_web_md-3.7.0-py3-none-any.whl" }
