@@ -4,7 +4,7 @@ services:
   hubeirs-rag:
     build:
       context: .
-      dockerfile: Dockerfile.copy
+      dockerfile: Dockerfile
     image: hubeirs-rag:latest
     container_name: hubeirs-rag-service
     # 对应 --network host
