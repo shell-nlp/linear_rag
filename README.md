@@ -16,5 +16,8 @@ pip install https://github.com/explosion/spacy-models/releases/download/zh_core_
 
 模型保存地址：/home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages/en_core_web_trf
 
-
 python -m spacy download zh_core_web_md
+
+# docker 部署
+docker build -t hubeirs-rag-base:v1 .
+docker-compose up -d

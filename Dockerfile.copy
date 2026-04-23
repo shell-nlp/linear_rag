@@ -1,5 +1,5 @@
 
-FROM linearrag-base:v1.0
+FROM hubeirs-rag-base:v1
 
 COPY . /app
 

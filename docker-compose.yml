@@ -1,15 +1,18 @@
 version: '3.8'
 
 services:
-  linear-rag:
+  hubeirs-rag:
     build:
       context: .
       dockerfile: Dockerfile.copy
-    image: linear-rag:latest
-    container_name: linearrag-service
+    image: hubeirs-rag:latest
+    container_name: hubeirs-rag-service
+
+    volumes:
+      - /home/dev/huangbinghan/LinearRAG-main/.venv/lib/python3.12/site-packages:/app/.venv/lib/python3.12/site-packages:ro
 
     # 对应 --network host
-    # 注意：使用 host 模式后，ports 映射会被忽略，容器直接使用 12124 端口
+    # 注意：使用 host 模式后，ports 映射会被忽略，容器直接使用 12125 端口
     network_mode: "host"
     
     # 对应 --restart always
