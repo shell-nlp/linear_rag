@@ -279,3 +279,4 @@ src/frontend/temp
 
 results/*
 local_models/*
+neo4j_volumes/*

@@ -11,4 +11,5 @@ __pycache__/
 htmlcov/
 Dockerfile
 .dockerignore
+neo4j_volumes/*
 
