@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinearRAG 调试控制台</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f8f9fc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #eef1f7;
+            --bg-card: #ffffff;
+            --border-color: #e2e6ed;
+            --border-glow: #c5cdd8;
+            --text-primary: #1a1d24;
+            --text-secondary: #5a6270;
+            --text-muted: #8b93a1;
+            --accent-cyan: #0891b2;
+            --accent-cyan-dim: #0e7490;
+            --accent-magenta: #c026d3;
+            --accent-green: #059669;
+            --accent-orange: #ea580c;
+            --accent-red: #dc2626;
+            --glow-cyan: 0 2px 8px rgba(8, 145, 178, 0.2);
+            --glow-magenta: 0 2px 8px rgba(192, 38, 211, 0.2);
+            --glow-green: 0 2px 8px rgba(5, 150, 105, 0.2);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--accent-cyan), #06b6d4);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: white;
+            box-shadow: var(--glow-cyan);
+        }
+
+        .title-group h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+
+        .title-group .subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-red);
+        }
+
+        .status-dot.connected {
+            background: var(--accent-green);
+        }
+
+        .main-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 32px 40px;
+        }
+
+        .console-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1000px) {
+            .console-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .panel-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-tertiary);
+        }
+
+        .panel-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--accent-cyan);
+            border-radius: 2px;
+        }
+
+        .panel-title.magenta::before { background: var(--accent-magenta); }
+        .panel-title.green::before { background: var(--accent-green); }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-tab {
+            padding: 12px 16px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-tab:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background: var(--bg-secondary);
+            border-color: var(--border-color);
+            color: var(--accent-cyan);
+            font-weight: 500;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .nav-tab .icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            background: var(--bg-tertiary);
+        }
+
+        .nav-tab.active .icon {
+            background: var(--accent-cyan);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        textarea.form-input {
+            min-height: 100px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent-cyan);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-cyan-dim);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .response-panel {
+            margin-top: 20px;
+        }
+
+        .response-box {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            min-height: 160px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .response-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .response-box::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .response-box::-webkit-scrollbar-thumb {
+            background: var(--border-glow);
+            border-radius: 3px;
+        }
+
+        .response-box pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: var(--text-secondary);
+        }
+
+        .response-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .response-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .response-status {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: var(--accent-green);
+            color: white;
+            font-weight: 500;
+        }
+
+        .response-status.error {
+            background: var(--accent-red);
+        }
+
+        .retrieval-results {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .result-card:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .result-score {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: var(--accent-cyan);
+            color: white;
+            font-weight: 500;
+        }
+
+        .result-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .result-text {
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            max-height: 120px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .result-text::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 30px;
+            background: linear-gradient(transparent, var(--bg-secondary));
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 30px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .toast {
+            padding: 12px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            min-width: 260px;
+        }
+
+        .toast.success { border-left: 4px solid var(--accent-green); }
+        .toast.error { border-left: 4px solid var(--accent-red); }
+        .toast.info { border-left: 4px solid var(--accent-cyan); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast-icon {
+            font-size: 18px;
+        }
+
+        .toast.success .toast-icon { color: var(--accent-green); }
+        .toast.error .toast-icon { color: var(--accent-red); }
+        .toast.info .toast-icon { color: var(--accent-cyan); }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-overlay"></div>
+
+    <header class="header">
+        <div class="logo-section">
+            <div class="logo">LR</div>
+            <div class="title-group">
+                <h1>LinearRAG Console</h1>
+                <div class="subtitle">调试控制台</div>
+            </div>
+        </div>
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">检查连接中...</span>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="console-grid">
+            <aside class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">功能模块</div>
+                </div>
+                <div class="panel-body">
+                    <nav class="nav-tabs">
+                        <button class="nav-tab active" data-tab="health">
+                            <span class="icon">◎</span>
+                            <span>系统状态</span>
+                        </button>
+                        <button class="nav-tab" data-tab="knowledgebase">
+                            <span class="icon">⌘</span>
+                            <span>知识库管理</span>
+                        </button>
+                        <button class="nav-tab" data-tab="index">
+                            <span class="icon">↑</span>
+                            <span>文档索引</span>
+                        </button>
+                        <button class="nav-tab" data-tab="retrieve">
+                            <span class="icon">◎</span>
+                            <span>文档检索</span>
+                        </button>
+                        <button class="nav-tab" data-tab="delete">
+                            <span class="icon">✕</span>
+                            <span>文件删除</span>
+                        </button>
+                    </nav>
+                </div>
+            </aside>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <div class="panel-title" id="panelTitle">系统状态</div>
+                </div>
+                <div class="panel-body">
+                    <div id="healthTab" class="tab-content active">
+                        <div class="form-group">
+                            <label class="form-label">API 端点</label>
+                            <input type="text" class="form-input" id="apiBase" value="http://localhost:12125" placeholder="API 基础地址">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="checkHealth()">
+                                <span>◉</span> 检查连接
+                            </button>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="healthResponse">
+                                <div class="empty-state">
+                                    <div class="icon">◎</div>
+                                    <p>点击"检查连接"按钮获取系统状态</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="knowledgebaseTab" class="tab-content">
+                        <div class="form-group">
+                            <label class="form-label">索引名称</label>
+                            <input type="text" class="form-input" id="kbName" placeholder="例如: my_knowledge_base">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="createKnowledgeBase()">
+                                <span>+</span> 创建知识库
+                            </button>
+                        </div>
+                        <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                            <div class="form-group">
+                                <label class="form-label">删除知识库</label>
+                                <input type="text" class="form-input" id="deleteKbName" placeholder="输入要删除的索引名称">
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-danger" onclick="deleteKnowledgeBase()">
+                                    <span>✕</span> 删除知识库
+                                </button>
+                            </div>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="kbResponse"></div>
+                        </div>
+                    </div>
+
+                    <div id="indexTab" class="tab-content">
+                        <div class="form-group">
+                            <label class="form-label">知识库名称</label>
+                            <input type="text" class="form-input" id="indexKbName" placeholder="知识库索引名称">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">MinIO 桶名称</label>
+                            <input type="text" class="form-input" id="bucketName" placeholder="MinIO bucket name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文件路径</label>
+                            <input type="text" class="form-input" id="filePath" placeholder="MinIO 中的文件路径">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文件 ID (可选)</label>
+                            <input type="text" class="form-input" id="fileId" placeholder="留空则自动生成">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="indexDocuments()">
+                                <span>↑</span> 开始索引
+                            </button>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="indexResponse">
+                                <div class="empty-state">
+                                    <div class="icon">↑</div>
+                                    <p>索引结果将显示在这里</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="retrieveTab" class="tab-content">
+                        <div class="form-group">
+                            <label class="form-label">检索问题</label>
+                            <textarea class="form-input" id="queryQuestion" placeholder="输入您的问题..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">索引名称列表</label>
+                            <input type="text" class="form-input" id="indexNames" placeholder="用逗号分隔, 例如: kb1,kb2">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">返回数量 (top_k)</label>
+                            <input type="number" class="form-input" id="topK" value="3" min="1" max="20">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="retrieveDocuments()">
+                                <span>◎</span> 执行检索
+                            </button>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="retrieveResponse">
+                                <div class="empty-state">
+                                    <div class="icon">◎</div>
+                                    <p>检索结果将显示在这里</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="deleteTab" class="tab-content">
+                        <div class="form-group">
+                            <label class="form-label">索引名称</label>
+                            <input type="text" class="form-input" id="deleteIndexName" placeholder="知识库索引名称">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文件 ID 列表</label>
+                            <textarea class="form-input" id="deleteFileIds" placeholder="用逗号分隔文件ID" style="min-height: 80px;"></textarea>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-danger" onclick="deleteFiles()">
+                                <span>✕</span> 删除文件
+                            </button>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="deleteResponse">
+                                <div class="empty-state">
+                                    <div class="icon">✕</div>
+                                    <p>删除操作结果将显示在这里</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:12125';
+
+        function getApiBase() {
+            return document.getElementById('apiBase').value || API_BASE;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: '✓', error: '✕', info: '◎' };
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type]}</span>
+                <span class="toast-message">${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function setResponse(boxId, content, status = null) {
+            const box = document.getElementById(boxId);
+            let statusHtml = '';
+            if (status) {
+                const statusClass = status === 200 || status === 'success' ? '' : 'error';
+                statusHtml = `<div class="response-meta">
+                    <span class="response-status ${statusClass}">${status}</span>
+                    <span class="response-time">${new Date().toLocaleTimeString()}</span>
+                </div>`;
+            }
+            box.innerHTML = statusHtml + `<pre>${content}</pre>`;
+        }
+
+        function showLoading(boxId) {
+            document.getElementById(boxId).innerHTML = '<div class="loading"><div class="spinner"></div><span>处理中...</span></div>';
+        }
+
+        async function checkHealth() {
+            const base = getApiBase();
+            try {
+                const response = await fetch(`${base}/health`);
+                const data = await response.json();
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = '已连接';
+                setResponse('healthResponse', JSON.stringify(data, null, 2), response.status);
+                showToast('系统运行正常', 'success');
+            } catch (error) {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = '未连接';
+                setResponse('healthResponse', `连接错误: ${error.message}`, 'error');
+                showToast('无法连接到服务器', 'error');
+            }
+        }
+
+        async function createKnowledgeBase() {
+            const base = getApiBase();
+            const indexName = document.getElementById('kbName').value.trim();
+            if (!indexName) {
+                showToast('请输入索引名称', 'error');
+                return;
+            }
+            showLoading('kbResponse');
+            try {
+                const response = await fetch(`${base}/create_knowledgebase`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index_name: indexName })
+                });
+                const data = await response.json();
+                setResponse('kbResponse', JSON.stringify(data, null, 2), response.status);
+                showToast(`知识库 "${indexName}" 创建成功`, 'success');
+                document.getElementById('kbName').value = '';
+            } catch (error) {
+                setResponse('kbResponse', `错误: ${error.message}`, 'error');
+                showToast('创建知识库失败', 'error');
+            }
+        }
+
+        async function deleteKnowledgeBase() {
+            const base = getApiBase();
+            const indexName = document.getElementById('deleteKbName').value.trim();
+            if (!indexName) {
+                showToast('请输入要删除的索引名称', 'error');
+                return;
+            }
+            if (!confirm(`确定要删除知识库 "${indexName}" 吗? 此操作不可恢复!`)) return;
+            showLoading('kbResponse');
+            try {
+                const response = await fetch(`${base}/delete_knowledgebase`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index_name: indexName })
+                });
+                const data = await response.json();
+                setResponse('kbResponse', JSON.stringify(data, null, 2), response.status);
+                if (response.ok) {
+                    showToast(`知识库 "${indexName}" 已删除`, 'success');
+                    document.getElementById('deleteKbName').value = '';
+                } else {
+                    showToast('删除知识库失败', 'error');
+                }
+            } catch (error) {
+                setResponse('kbResponse', `错误: ${error.message}`, 'error');
+                showToast('删除知识库失败', 'error');
+            }
+        }
+
+        async function indexDocuments() {
+            const base = getApiBase();
+            const payload = {
+                kb_name: document.getElementById('indexKbName').value.trim(),
+                bucket_name: document.getElementById('bucketName').value.trim(),
+                file_path: document.getElementById('filePath').value.trim(),
+                file_id: document.getElementById('fileId').value.trim() || null
+            };
+            if (!payload.kb_name || !payload.bucket_name || !payload.file_path) {
+                showToast('请填写所有必填字段', 'error');
+                return;
+            }
+            showLoading('indexResponse');
+            try {
+                const response = await fetch(`${base}/index`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                setResponse('indexResponse', JSON.stringify(data, null, 2), response.status);
+                if (response.ok) {
+                    showToast(`成功索引 ${data.chunk_count} 个文档块`, 'success');
+                } else {
+                    showToast('索引失败', 'error');
+                }
+            } catch (error) {
+                setResponse('indexResponse', `错误: ${error.message}`, 'error');
+                showToast('索引请求失败', 'error');
+            }
+        }
+
+        async function retrieveDocuments() {
+            const base = getApiBase();
+            const questions = document.getElementById('queryQuestion').value.trim();
+            const indexNames = document.getElementById('indexNames').value.trim();
+            const topK = parseInt(document.getElementById('topK').value) || 3;
+            if (!questions || !indexNames) {
+                showToast('请填写问题和建议名称', 'error');
+                return;
+            }
+            showLoading('retrieveResponse');
+            try {
+                const response = await fetch(`${base}/retrieve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        questions,
+                        index_names: indexNames.split(',').map(s => s.trim()),
+                        top_k: topK
+                    })
+                });
+                const data = await response.json();
+                if (response.ok && data.data) {
+                    displayRetrievalResults(data.data);
+                } else {
+                    setResponse('retrieveResponse', JSON.stringify(data, null, 2), response.status);
+                    showToast('检索完成', 'info');
+                }
+            } catch (error) {
+                setResponse('retrieveResponse', `错误: ${error.message}`, 'error');
+                showToast('检索请求失败', 'error');
+            }
+        }
+
+        function displayRetrievalResults(results) {
+            const box = document.getElementById('retrieveResponse');
+            if (!results || results.length === 0) {
+                box.innerHTML = '<div class="empty-state"><div class="icon">◎</div><p>未找到相关结果</p></div>';
+                return;
+            }
+            let html = `<div class="response-meta">
+                <span class="response-status">${results.length} 条结果</span>
+                <span class="response-time">${new Date().toLocaleTimeString()}</span>
+            </div>`;
+            html += '<div class="retrieval-results">';
+            results.forEach((result, i) => {
+                const score = result.score ? (result.score * 100).toFixed(1) + '%' : 'N/A';
+                const meta = result.metadata || {};
+                html += `<div class="result-card">
+                    <div class="result-header">
+                        <span class="result-score">相似度: ${score}</span>
+                        <span class="result-meta">#${i + 1}</span>
+                    </div>
+                    <div class="result-text">${escapeHtml(result.text || '')}</div>
+                    <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">
+                        ${meta.file_name ? `文件: ${meta.file_name}` : ''}
+                        ${meta.segment_id ? ` | 段落ID: ${meta.segment_id}` : ''}
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            box.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function deleteFiles() {
+            const base = getApiBase();
+            const indexName = document.getElementById('deleteIndexName').value.trim();
+            const fileIds = document.getElementById('deleteFileIds').value.trim();
+            if (!indexName || !fileIds) {
+                showToast('请填写所有字段', 'error');
+                return;
+            }
+            showLoading('deleteResponse');
+            try {
+                const response = await fetch(`${base}/delete_files`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        index_name: indexName,
+                        file_ids: fileIds.split(',').map(s => s.trim())
+                    })
+                });
+                const data = await response.json();
+                setResponse('deleteResponse', JSON.stringify(data, null, 2), response.status);
+                showToast('文件删除请求已发送', 'success');
+            } catch (error) {
+                setResponse('deleteResponse', `错误: ${error.message}`, 'error');
+                showToast('删除请求失败', 'error');
+            }
+        }
+
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                const tabId = tab.dataset.tab + 'Tab';
+                document.getElementById(tabId).classList.add('active');
+
+                const titles = {
+                    health: '系统状态',
+                    knowledgebase: '知识库管理',
+                    index: '文档索引',
+                    retrieve: '文档检索',
+                    delete: '文件删除'
+                };
+                document.getElementById('panelTitle').textContent = titles[tab.dataset.tab];
+            });
+        });
+
+        window.addEventListener('load', () => {
+            checkHealth();
+        });
+    </script>
+</body>
+</html>

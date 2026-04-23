@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import warnings
 from contextlib import asynccontextmanager
@@ -7,6 +6,7 @@ from typing import Any, Dict, List
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -264,6 +264,12 @@ def create_knowledgebase(request: CreateKBRequest):
 @app.get("/health")
 def health_check():
     return {"status": "alive"}
+
+
+@app.get("/")
+def serve_frontend():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return FileResponse(os.path.join(current_dir, "index.html"))
 
 
 if __name__ == "__main__":
