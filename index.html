@@ -572,6 +572,10 @@
                             <span class="icon">↑</span>
                             <span>文档索引</span>
                         </button>
+                        <button class="nav-tab" data-tab="single">
+                            <span class="icon">+</span>
+                            <span>单条索引</span>
+                        </button>
                         <button class="nav-tab" data-tab="retrieve">
                             <span class="icon">◎</span>
                             <span>文档检索</span>
@@ -690,6 +694,30 @@
                                 <div class="empty-state">
                                     <div class="icon">◎</div>
                                     <p>检索结果将显示在这里</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="singleTab" class="tab-content">
+                        <div class="form-group">
+                            <label class="form-label">索引名称</label>
+                            <input type="text" class="form-input" id="singleIndexName" placeholder="知识库索引名称">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文本内容</label>
+                            <textarea class="form-input" id="singleText" placeholder="输入要索引的文本片段..." style="min-height: 120px;"></textarea>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="indexSinglePassage()">
+                                <span>+</span> 索引文本
+                            </button>
+                        </div>
+                        <div class="response-panel">
+                            <div class="response-box" id="singleResponse">
+                                <div class="empty-state">
+                                    <div class="icon">+</div>
+                                    <p>索引结果将显示在这里</p>
                                 </div>
                             </div>
                         </div>
@@ -864,6 +892,37 @@
             }
         }
 
+        async function indexSinglePassage() {
+            const base = getApiBase();
+            const payload = {
+                index_name: document.getElementById('singleIndexName').value.trim(),
+                text: document.getElementById('singleText').value.trim()
+            };
+            if (!payload.index_name || !payload.text) {
+                showToast('请填写所有必填字段', 'error');
+                return;
+            }
+            showLoading('singleResponse');
+            try {
+                const response = await fetch(`${base}/index_single`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                setResponse('singleResponse', JSON.stringify(data, null, 2), response.status);
+                if (response.ok) {
+                    showToast('文本索引成功', 'success');
+                    document.getElementById('singleText').value = '';
+                } else {
+                    showToast('索引失败', 'error');
+                }
+            } catch (error) {
+                setResponse('singleResponse', `错误: ${error.message}`, 'error');
+                showToast('索引请求失败', 'error');
+            }
+        }
+
         async function retrieveDocuments() {
             const base = getApiBase();
             const questions = document.getElementById('queryQuestion').value.trim();
@@ -972,6 +1031,7 @@
                     health: '系统状态',
                     knowledgebase: '知识库管理',
                     index: '文档索引',
+                    single: '单条索引',
                     retrieve: '文档检索',
                     delete: '文件删除'
                 };

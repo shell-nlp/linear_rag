@@ -208,12 +208,10 @@ def index_single_passage(payload: SinglePassagePayload):
     向 ES 上传单独片段接口，文本会自动向量化
     """
     try:
-        embedding_model = LocalOpenAIEmbeddingModel(
-            LLM_BASE_URL, EMBEDDING_MODEL_NAME
-        )
+        embedding_model = LocalOpenAIEmbeddingModel(LLM_BASE_URL, EMBEDDING_MODEL_NAME)
         vector = embedding_model.encode([payload.text])[0]
 
-        hash_id = compute_mdhash_id(payload.text, prefix="passage-")
+        hash_id = compute_mdhash_id(payload.text, prefix="keyword-")
 
         es_tool = Customize_Elastic(es_client)
         es_tool.save_batch(
@@ -312,4 +310,4 @@ def serve_frontend():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12125)
+    uvicorn.run(app, host="0.0.0.0", port=12126)
