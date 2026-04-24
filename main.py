@@ -86,11 +86,63 @@ class DeletePayload(BaseModel):
     file_ids: List[str]
 
 
+class ESSearchPayload(BaseModel):
+    index_name: str = Field(description="要查询的 ES 索引名称")
+    field_name: str = Field(description="要查询的 ES 字段名")
+    keyword: str = Field(description="查询关键词")
+    use_vector: bool = Field(default=False, description="是否使用向量查询")
+    top_k: int = Field(default=10, ge=1, description="返回结果数量")
+
+
 class AppState:
     rag_model: LinearRAG = None
 
 
 state = AppState()
+
+
+def field_exists_in_mapping(properties: Dict[str, Any], field_name: str) -> bool:
+    current = properties
+    parts = field_name.split(".")
+    for idx, part in enumerate(parts):
+        field_info = current.get(part)
+        if field_info is None:
+            return False
+        if idx == len(parts) - 1:
+            return True
+        if "properties" in field_info:
+            current = field_info["properties"]
+            continue
+        if "fields" in field_info:
+            current = field_info["fields"]
+            continue
+        return False
+    return False
+
+
+def validate_search_index(index_name: str, field_name: str, use_vector: bool) -> None:
+    try:
+        index_info = es_client.indices.get(index=index_name)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"Index '{index_name}' not found") from exc
+
+    properties = index_info.get(index_name, {}).get("mappings", {}).get("properties", {})
+    if not field_exists_in_mapping(properties, field_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Field '{field_name}' does not exist in index '{index_name}'",
+        )
+    if use_vector and not field_exists_in_mapping(properties, "vector"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Index '{index_name}' does not contain vector field",
+        )
+
+
+def get_embedding_model() -> LocalOpenAIEmbeddingModel:
+    if state.rag_model and state.rag_model.embedding_model:
+        return state.rag_model.embedding_model
+    return LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
 
 def documents_to_passages(documents: List[Any]) -> Dict[str, List[Any]]:
@@ -301,6 +353,68 @@ def create_knowledgebase(request: CreateKBRequest):
         "status": "success",
         "message": f"Knowledge base {request.index_name} created",
     }
+
+
+@app.post("/search_es")
+def search_es_documents(payload: ESSearchPayload):
+    """
+    ES 查询接口
+    """
+    try:
+        validate_search_index(
+            index_name=payload.index_name,
+            field_name=payload.field_name,
+            use_vector=payload.use_vector,
+        )
+
+        es_tool = Customize_Elastic(es_client)
+        if payload.use_vector:
+            query_vector = get_embedding_model().encode([payload.keyword])[0]
+            response = es_tool.es_search(
+                index_name=payload.index_name,
+                knn={
+                    "field": "vector",
+                    "query_vector": query_vector,
+                    "k": payload.top_k,
+                    "num_candidates": max(payload.top_k * 10, 100),
+                    "filter": {
+                        "bool": {
+                            "must": [{"exists": {"field": payload.field_name}}]
+                        }
+                    },
+                },
+            )
+        else:
+            response = es_tool.es_search(
+                index_name=payload.index_name,
+                query_body={
+                    "size": payload.top_k,
+                    "query": {"match": {payload.field_name: payload.keyword}}
+                },
+            )
+
+        hits = response.get("hits", {}).get("hits", [])
+        data = [
+            {
+                "index": hit.get("_index"),
+                "id": hit.get("_id"),
+                "score": hit.get("_score"),
+                "source": hit.get("_source", {}),
+            }
+            for hit in hits
+        ]
+
+        return {
+            "status": "success",
+            "search_type": "vector" if payload.use_vector else "keyword",
+            "index_name": payload.index_name,
+            "count": len(data),
+            "data": data,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/health")
