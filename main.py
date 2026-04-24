@@ -25,10 +25,11 @@ from src.config import (
     embdding_dim,
 )
 from src.embedding import LocalOpenAIEmbeddingModel
+from src.es import Customize_Elastic
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
 from src.text_splitter import PDFParser
-from src.utils import get_es_client, setup_logging
+from src.utils import get_es_client, setup_logging, compute_mdhash_id
 
 default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
 "mappings": {"properties": 
@@ -66,6 +67,11 @@ class IndexPayload(BaseModel):
     bucket_name: str = Field(description="MinIO 桶名称")
     file_path: str = Field(description="MinIO 文件路径")
     file_id: str | None = Field(default=None, description="文件 ID，可选")
+
+
+class SinglePassagePayload(BaseModel):
+    index_name: str = Field(description="知识库索引名称")
+    text: str = Field(description="要索引的文本片段")
 
 
 class RetrievePayload(BaseModel):
@@ -189,6 +195,39 @@ def index_documents(payload: IndexPayload):
         }
     except HTTPException:
         raise
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/index_single")
+def index_single_passage(payload: SinglePassagePayload):
+    """
+    向 ES 上传单独片段接口，文本会自动向量化
+    """
+    try:
+        embedding_model = LocalOpenAIEmbeddingModel(
+            LLM_BASE_URL, EMBEDDING_MODEL_NAME
+        )
+        vector = embedding_model.encode([payload.text])[0]
+
+        hash_id = compute_mdhash_id(payload.text, prefix="passage-")
+
+        es_tool = Customize_Elastic(es_client)
+        es_tool.save_batch(
+            hash_ids=[hash_id],
+            doc_infos=[{"text": payload.text}],
+            embeddings=[vector],
+            index_name=payload.index_name,
+        )
+
+        return {
+            "status": "success",
+            "message": f"Successfully indexed into {payload.index_name}",
+            "hash_id": hash_id,
+        }
     except Exception as e:
         import traceback
 

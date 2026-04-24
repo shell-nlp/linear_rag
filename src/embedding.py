@@ -1,4 +1,5 @@
 from langchain_openai import OpenAIEmbeddings
+from src.config import LLM_BASE_URL
 
 
 class LocalOpenAIEmbeddingModel:
@@ -13,7 +14,7 @@ class LocalOpenAIEmbeddingModel:
         self.embedding_model = OpenAIEmbeddings(
             model=model_name,
             openai_api_key="123",
-            openai_api_base=api_url,
+            openai_api_base=LLM_BASE_URL,
         )
 
     def encode(self, sentences, batch_size=32, **kwargs) -> list[list[float]]:
