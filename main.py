@@ -72,6 +72,7 @@ class IndexPayload(BaseModel):
 class SinglePassagePayload(BaseModel):
     index_name: str = Field(description="知识库索引名称")
     text: str = Field(description="要索引的文本片段")
+    keyword: str = Field(description="关键词")
 
 
 class RetrievePayload(BaseModel):
@@ -211,7 +212,7 @@ def index_single_passage(payload: SinglePassagePayload):
         embedding_model = LocalOpenAIEmbeddingModel(LLM_BASE_URL, EMBEDDING_MODEL_NAME)
         vector = embedding_model.encode([payload.text])[0]
 
-        hash_id = compute_mdhash_id(payload.text, prefix="keyword-")
+        hash_id = compute_mdhash_id(payload.text, prefix=f"{payload.keyword}-")
 
         es_tool = Customize_Elastic(es_client)
         es_tool.save_batch(
