@@ -12,6 +12,7 @@ dependencies = [
     "httpx==0.28.1",
     "igraph==1.0.0",
     "langchain>=1.2.15",
+    "langchain-openai>=1.1.9",
     "langchain-text-splitters>=1.1.2",
     "loguru==0.7.3",
     "neo4j==6.0.3",
