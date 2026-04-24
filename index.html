@@ -705,12 +705,16 @@
                             <input type="text" class="form-input" id="singleIndexName" placeholder="知识库索引名称">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">文本内容</label>
-                            <textarea class="form-input" id="singleText" placeholder="输入要索引的文本片段..." style="min-height: 120px;"></textarea>
+                            <label class="form-label">关键词</label>
+                            <input type="text" class="form-input" id="singleKeyword" placeholder="用于生成 hash_id 前缀">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文本内容 (每行一个片段)</label>
+                            <textarea class="form-input" id="singleTexts" placeholder="输入要索引的文本片段，每行一个..." style="min-height: 150px;"></textarea>
                         </div>
                         <div class="btn-group">
                             <button class="btn btn-primary" onclick="indexSinglePassage()">
-                                <span>+</span> 索引文本
+                                <span>+</span> 批量索引
                             </button>
                         </div>
                         <div class="response-panel">
@@ -894,14 +898,27 @@
 
         async function indexSinglePassage() {
             const base = getApiBase();
-            const payload = {
-                index_name: document.getElementById('singleIndexName').value.trim(),
-                text: document.getElementById('singleText').value.trim()
-            };
-            if (!payload.index_name || !payload.text) {
+            const indexName = document.getElementById('singleIndexName').value.trim();
+            const keyword = document.getElementById('singleKeyword').value.trim();
+            const textsRaw = document.getElementById('singleTexts').value.trim();
+
+            if (!indexName || !keyword || !textsRaw) {
                 showToast('请填写所有必填字段', 'error');
                 return;
             }
+
+            const texts = textsRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+            if (texts.length === 0) {
+                showToast('请输入至少一个文本片段', 'error');
+                return;
+            }
+
+            const payload = {
+                index_name: indexName,
+                keyword: keyword,
+                texts: texts
+            };
+
             showLoading('singleResponse');
             try {
                 const response = await fetch(`${base}/index_single`, {
@@ -912,8 +929,7 @@
                 const data = await response.json();
                 setResponse('singleResponse', JSON.stringify(data, null, 2), response.status);
                 if (response.ok) {
-                    showToast('文本索引成功', 'success');
-                    document.getElementById('singleText').value = '';
+                    showToast(`成功索引 ${texts.length} 个文本片段`, 'success');
                 } else {
                     showToast('索引失败', 'error');
                 }

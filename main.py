@@ -71,7 +71,7 @@ class IndexPayload(BaseModel):
 
 class SinglePassagePayload(BaseModel):
     index_name: str = Field(description="知识库索引名称")
-    text: str = Field(description="要索引的文本片段")
+    texts: List[str] = Field(description="要索引的文本片段列表")
     keyword: str = Field(description="关键词")
 
 
@@ -210,22 +210,26 @@ def index_single_passage(payload: SinglePassagePayload):
     """
     try:
         embedding_model = LocalOpenAIEmbeddingModel(LLM_BASE_URL, EMBEDDING_MODEL_NAME)
-        vector = embedding_model.encode([payload.text])[0]
+        vectors = embedding_model.encode(payload.texts)
 
-        hash_id = compute_mdhash_id(payload.text, prefix=f"{payload.keyword}-")
+        hash_ids = [
+            compute_mdhash_id(text, prefix=f"{payload.keyword}-")
+            for text in payload.texts
+        ]
 
         es_tool = Customize_Elastic(es_client)
         es_tool.save_batch(
-            hash_ids=[hash_id],
-            doc_infos=[{"text": payload.text}],
-            embeddings=[vector],
+            hash_ids=hash_ids,
+            doc_infos=[{"text": text} for text in payload.texts],
+            embeddings=vectors,
             index_name=payload.index_name,
         )
 
         return {
             "status": "success",
-            "message": f"Successfully indexed into {payload.index_name}",
-            "hash_id": hash_id,
+            "message": f"Successfully indexed {len(payload.texts)} passages into {payload.index_name}",
+            "count": len(payload.texts),
+            "hash_ids": hash_ids,
         }
     except Exception as e:
         import traceback
@@ -311,4 +315,4 @@ def serve_frontend():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12125)
+    uvicorn.run(app, host="0.0.0.0", port=12126)
