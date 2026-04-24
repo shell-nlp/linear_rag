@@ -124,9 +124,13 @@ def validate_search_index(index_name: str, field_name: str, use_vector: bool) ->
     try:
         index_info = es_client.indices.get(index=index_name)
     except Exception as exc:
-        raise HTTPException(status_code=404, detail=f"Index '{index_name}' not found") from exc
+        raise HTTPException(
+            status_code=404, detail=f"Index '{index_name}' not found"
+        ) from exc
 
-    properties = index_info.get(index_name, {}).get("mappings", {}).get("properties", {})
+    properties = (
+        index_info.get(index_name, {}).get("mappings", {}).get("properties", {})
+    )
     if not field_exists_in_mapping(properties, field_name):
         raise HTTPException(
             status_code=400,
@@ -378,9 +382,7 @@ def search_es_documents(payload: ESSearchPayload):
                     "k": payload.top_k,
                     "num_candidates": max(payload.top_k * 10, 100),
                     "filter": {
-                        "bool": {
-                            "must": [{"exists": {"field": payload.field_name}}]
-                        }
+                        "bool": {"must": [{"exists": {"field": payload.field_name}}]}
                     },
                 },
             )
@@ -389,7 +391,7 @@ def search_es_documents(payload: ESSearchPayload):
                 index_name=payload.index_name,
                 query_body={
                     "size": payload.top_k,
-                    "query": {"match": {payload.field_name: payload.keyword}}
+                    "query": {"match": {payload.field_name: payload.keyword}},
                 },
             )
 
@@ -399,7 +401,11 @@ def search_es_documents(payload: ESSearchPayload):
                 "index": hit.get("_index"),
                 "id": hit.get("_id"),
                 "score": hit.get("_score"),
-                "source": hit.get("_source", {}),
+                "source": {
+                    "text": hit.get("_source", {}).get("text"),
+                    "hash_id": hit.get("_source", {}).get("hash_id"),
+                    "type": hit.get("_source", {}).get("type"),
+                },
             }
             for hit in hits
         ]
