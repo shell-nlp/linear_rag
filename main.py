@@ -315,4 +315,4 @@ def serve_frontend():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12126)
+    uvicorn.run(app, host="0.0.0.0", port=12125)
