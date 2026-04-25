@@ -89,7 +89,7 @@ class DeletePayload(BaseModel):
 class ESSearchPayload(BaseModel):
     index_name: str = Field(description="要查询的 ES 索引名称")
     field_name: str = Field(description="要查询的 ES 字段名")
-    keyword: str = Field(description="查询关键词")
+    search_key: str = Field(description="查询关键词")
     use_vector: bool = Field(default=False, description="是否使用向量查询")
     top_k: int = Field(default=10, ge=1, description="返回结果数量")
 
@@ -373,7 +373,7 @@ def search_es_documents(payload: ESSearchPayload):
 
         es_tool = Customize_Elastic(es_client)
         if payload.use_vector:
-            query_vector = get_embedding_model().encode([payload.keyword])[0]
+            query_vector = get_embedding_model().encode([payload.search_key])[0]
             response = es_tool.es_search(
                 index_name=payload.index_name,
                 knn={
@@ -391,7 +391,7 @@ def search_es_documents(payload: ESSearchPayload):
                 index_name=payload.index_name,
                 query_body={
                     "size": payload.top_k,
-                    "query": {"match": {payload.field_name: payload.keyword}},
+                    "query": {"match": {payload.field_name: payload.search_key}},
                 },
             )
 
