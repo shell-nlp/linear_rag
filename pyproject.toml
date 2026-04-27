@@ -28,6 +28,8 @@ dependencies = [
     "spacy==3.7.0",
     "uvicorn==0.40.0",
     "zh-core-web-md",
+    "nacos-sdk-python<=3",
+    "apscheduler>=3.11.2",
 ]
 
 [[tool.uv.index]]

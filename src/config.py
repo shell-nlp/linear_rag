@@ -46,3 +46,9 @@ minio_secret_key = os.getenv("minio_secret_key", "minioadmin")
 es_url = os.getenv("es_url", "http://192.168.102.19:9200")
 es_user = os.getenv("es_user", "elastic")
 es_password = os.getenv("es_password", "elastic@2024")
+
+# nacos
+NACOS_SERVER_ADDRESSES = os.getenv("NACOS_SERVER_ADDRESSES", "192.168.102.21:8848")
+NACOS_NAMESPACE = os.getenv("NACOS_NAMESPACE", "kg-hb-dev")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "python-knowledge-management")
+LOCAL_IP = os.getenv("LOCAL_IP", "192.168.102.19")

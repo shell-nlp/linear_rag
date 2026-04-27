@@ -1,10 +1,13 @@
+import asyncio
 import json
 import os
 import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
+import nacos
 import uvicorn
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
@@ -15,11 +18,15 @@ from src.config import (
     EMBEDDING_MODEL_NAME,
     LLM_API_KEY,
     LLM_BASE_URL,
+    LOCAL_IP,
     MAX_WORKERS,
+    NACOS_NAMESPACE,
+    NACOS_SERVER_ADDRESSES,
     NEO4J_DATABASE,
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USER,
+    SERVICE_NAME,
     SPACY_MODEL,
     LinearRAGConfig,
     embdding_dim,
@@ -29,7 +36,23 @@ from src.es import Customize_Elastic
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
 from src.text_splitter import PDFParser
-from src.utils import get_es_client, setup_logging, compute_mdhash_id
+from src.utils import compute_mdhash_id, get_es_client, setup_logging
+
+scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+client = nacos.NacosClient(NACOS_SERVER_ADDRESSES, namespace=NACOS_NAMESPACE)
+local_ip = LOCAL_IP
+
+
+@scheduler.scheduled_job("interval", seconds=6)
+async def beat():
+    await asyncio.to_thread(
+        client.add_naming_instance,
+        SERVICE_NAME,
+        local_ip,
+        service_port,
+        group_name="DEFAULT_GROUP",
+    )
+
 
 default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
 "mappings": {"properties": 
@@ -197,10 +220,11 @@ def resolve_index_passages(payload: IndexPayload) -> Dict[str, List[Any]]:
 async def lifespan(app: FastAPI):
     # Startup: 初始化所有连接
     print("正在初始化系统资源...")
+    scheduler.start()
     os.environ["OPENAI_API_KEY"] = LLM_API_KEY
     os.environ["OPENAI_BASE_URL"] = LLM_BASE_URL
 
-    log_dir = f"logs/"
+    log_dir = "logs/"
     os.makedirs(log_dir, exist_ok=True)
     setup_logging(os.path.join(log_dir, "log.txt"))
 
@@ -434,5 +458,6 @@ def serve_frontend():
     return FileResponse(os.path.join(current_dir, "index.html"))
 
 
+service_port = 12125
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12125)
+    uvicorn.run(app, host="0.0.0.0", port=service_port)
