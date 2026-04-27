@@ -257,7 +257,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="LinearRAG API Service", lifespan=lifespan)
 
 
-@app.post("/index")
+@app.post("/admin_api/python-knowledge-management/index")
 def index_documents(payload: IndexPayload):
     """
     建立索引接口
@@ -283,7 +283,7 @@ def index_documents(payload: IndexPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/index_single")
+@app.post("/admin_api/python-knowledge-management/index_single")
 def index_single_passage(payload: SinglePassagePayload):
     """
     向 ES 上传单独片段接口，文本会自动向量化
@@ -318,7 +318,7 @@ def index_single_passage(payload: SinglePassagePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/retrieve")
+@app.post("/admin_api/python-knowledge-management/retrieve")
 def retrieve_documents(payload: RetrievePayload):
     """
     检索接口
@@ -333,7 +333,7 @@ def retrieve_documents(payload: RetrievePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/delete_files")
+@app.post("/admin_api/python-knowledge-management/delete_files")
 def delete_files(payload: DeletePayload):
     """
     删除文件索引接口
@@ -355,7 +355,7 @@ class DeleteKBRequest(BaseModel):
 
 
 # 删除知识库索引
-@app.post("/delete_knowledgebase")
+@app.post("/admin_api/python-knowledge-management/delete_knowledgebase")
 def delete_knowledgebase(request: DeleteKBRequest):
     """
     删除知识库接口
@@ -372,7 +372,7 @@ class CreateKBRequest(BaseModel):
     index_name: str = Field(description="知识库的索引名称")
 
 
-@app.post("/create_knowledgebase")
+@app.post("/admin_api/python-knowledge-management/create_knowledgebase")
 def create_knowledgebase(request: CreateKBRequest):
     """创建知识库"""
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
@@ -383,7 +383,7 @@ def create_knowledgebase(request: CreateKBRequest):
     }
 
 
-@app.post("/search_es")
+@app.post("/admin_api/python-knowledge-management/search_es")
 def search_es_documents(payload: ESSearchPayload):
     """
     ES 查询接口
@@ -447,7 +447,7 @@ def search_es_documents(payload: ESSearchPayload):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/health")
+@app.get("/admin_api/python-knowledge-management/health")
 def health_check():
     return {"status": "alive"}
 
