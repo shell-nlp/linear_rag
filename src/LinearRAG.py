@@ -147,6 +147,7 @@ class LinearRAG:
             show_progress_bar=False,
             batch_size=self.config.batch_size,
         )
+        embedding = np.asarray(embedding, dtype=float)
 
         # 统一处理向量维度
         if len(embedding.shape) == 2:

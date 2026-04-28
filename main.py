@@ -330,6 +330,7 @@ def retrieve_documents(payload: RetrievePayload):
         )
         return {"status": "success", "data": results}
     except Exception as e:
+        logger.exception("retrieve_documents failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
