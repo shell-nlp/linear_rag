@@ -117,6 +117,12 @@ class ESSearchPayload(BaseModel):
     top_k: int = Field(default=10, ge=1, description="返回结果数量")
 
 
+class Response(BaseModel):
+    code: str = Field(default="0", description="状态码")
+    msg: str = Field(default="ok", description="状态描述")
+    data: Any = Field(description="数据")
+
+
 class AppState:
     rag_model: LinearRAG = None
 
@@ -257,7 +263,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="LinearRAG API Service", lifespan=lifespan)
 
 
-@app.post("/admin_api/python-knowledge-management/index")
+@app.post("/admin_api/python-knowledge-management/index", response_model=Response)
 def index_documents(payload: IndexPayload):
     """
     建立索引接口
@@ -268,12 +274,16 @@ def index_documents(payload: IndexPayload):
         file_ids = sorted(
             {str(file_id) for file_id in passages.get("file_id", []) if file_id}
         )
-        return {
-            "status": "success",
-            "message": f"Successfully indexed into {payload.kb_name}",
-            "chunk_count": len(passages.get("text", [])),
-            "file_ids": file_ids,
-        }
+        return Response(
+            code="0",
+            msg="ok",
+            data={
+                "status": "success",
+                "message": f"Successfully indexed into {payload.kb_name}",
+                "chunk_count": len(passages.get("text", [])),
+                "file_ids": file_ids,
+            },
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -283,7 +293,7 @@ def index_documents(payload: IndexPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/admin_api/python-knowledge-management/index_single")
+@app.post("/admin_api/python-knowledge-management/index_single", response_model=Response)
 def index_single_passage(payload: SinglePassagePayload):
     """
     向 ES 上传单独片段接口，文本会自动向量化
@@ -305,12 +315,16 @@ def index_single_passage(payload: SinglePassagePayload):
             index_name=payload.index_name,
         )
 
-        return {
-            "status": "success",
-            "message": f"Successfully indexed {len(payload.texts)} passages into {payload.index_name}",
-            "count": len(payload.texts),
-            "hash_ids": hash_ids,
-        }
+        return Response(
+            code="0",
+            msg="ok",
+            data={
+                "status": "success",
+                "message": f"Successfully indexed {len(payload.texts)} passages into {payload.index_name}",
+                "count": len(payload.texts),
+                "hash_ids": hash_ids,
+            },
+        )
     except Exception as e:
         import traceback
 
@@ -318,7 +332,7 @@ def index_single_passage(payload: SinglePassagePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/admin_api/python-knowledge-management/retrieve")
+@app.post("/admin_api/python-knowledge-management/retrieve", response_model=Response)
 def retrieve_documents(payload: RetrievePayload):
     """
     检索接口
@@ -328,13 +342,13 @@ def retrieve_documents(payload: RetrievePayload):
         results = state.rag_model.retrieve(
             questions, index_names=payload.index_names, top_k=payload.top_k
         )
-        return {"status": "success", "data": results}
+        return Response(code="0", msg="ok", data=results)
     except Exception as e:
         logger.exception("retrieve_documents failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/admin_api/python-knowledge-management/delete_files")
+@app.post("/admin_api/python-knowledge-management/delete_files", response_model=Response)
 def delete_files(payload: DeletePayload):
     """
     删除文件索引接口
@@ -343,10 +357,14 @@ def delete_files(payload: DeletePayload):
         state.rag_model.delete_files(
             index_name=payload.index_name, file_ids=payload.file_ids
         )
-        return {
-            "status": "success",
-            "message": f"File {payload.file_ids} deleted from {payload.index_name}",
-        }
+        return Response(
+            code="0",
+            msg="ok",
+            data={
+                "status": "success",
+                "message": f"File {payload.file_ids} deleted from {payload.index_name}",
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -356,35 +374,49 @@ class DeleteKBRequest(BaseModel):
 
 
 # 删除知识库索引
-@app.post("/admin_api/python-knowledge-management/delete_knowledgebase")
+@app.post(
+    "/admin_api/python-knowledge-management/delete_knowledgebase",
+    response_model=Response,
+)
 def delete_knowledgebase(request: DeleteKBRequest):
     """
     删除知识库接口
     """
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
     es_client.indices.delete(index=request.index_name, ignore_unavailable=True)
-    return {
-        "status": "success",
-        "message": f"Knowledge base {request.index_name} deleted",
-    }
+    return Response(
+        code="0",
+        msg="ok",
+        data={
+            "status": "success",
+            "message": f"Knowledge base {request.index_name} deleted",
+        },
+    )
 
 
 class CreateKBRequest(BaseModel):
     index_name: str = Field(description="知识库的索引名称")
 
 
-@app.post("/admin_api/python-knowledge-management/create_knowledgebase")
+@app.post(
+    "/admin_api/python-knowledge-management/create_knowledgebase",
+    response_model=Response,
+)
 def create_knowledgebase(request: CreateKBRequest):
     """创建知识库"""
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
     es_client.indices.create(index=request.index_name, body=default_settings)
-    return {
-        "status": "success",
-        "message": f"Knowledge base {request.index_name} created",
-    }
+    return Response(
+        code="0",
+        msg="ok",
+        data={
+            "status": "success",
+            "message": f"Knowledge base {request.index_name} created",
+        },
+    )
 
 
-@app.post("/admin_api/python-knowledge-management/search_es")
+@app.post("/admin_api/python-knowledge-management/search_es", response_model=Response)
 def search_es_documents(payload: ESSearchPayload):
     """
     ES 查询接口
@@ -435,22 +467,16 @@ def search_es_documents(payload: ESSearchPayload):
             for hit in hits
         ]
 
-        return {
-            "status": "success",
-            "search_type": "vector" if payload.use_vector else "keyword",
-            "index_name": payload.index_name,
-            "count": len(data),
-            "data": data,
-        }
+        return Response(code="0", msg="ok", data=data)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/admin_api/python-knowledge-management/health")
+@app.get("/admin_api/python-knowledge-management/health", response_model=Response)
 def health_check():
-    return {"status": "alive"}
+    return Response(code="0", msg="ok", data={"status": "alive"})
 
 
 @app.get("/")
