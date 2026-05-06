@@ -342,7 +342,7 @@ def retrieve_documents(payload: RetrievePayload):
         results = state.rag_model.retrieve(
             questions, index_names=payload.index_names, top_k=payload.top_k
         )
-        return Response(code="0", msg="ok", data=results)
+        return Response(code="0", msg="ok", data=results[0])
     except Exception as e:
         logger.exception("retrieve_documents failed")
         raise HTTPException(status_code=500, detail=str(e))
