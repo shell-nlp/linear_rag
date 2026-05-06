@@ -39,8 +39,10 @@ class Customize_Elastic():
 
     def save_batch(self, hash_ids, doc_infos, embeddings, index_name):
         """
+        批量保存文档，只插入不存在的文档（相同ID会被跳过）
+        
         :param hash_ids: ID 列表
-        :param doc_infos: 包含 text 和 元数据 的字典列表 (来自 full_docs_map)
+        :param doc_infos: 包含 text 和 元数据 的字典列表
         :param embeddings: 向量列表
         """
         
@@ -52,42 +54,46 @@ class Customize_Elastic():
         
         actions = []
         
-        # 遍历时，doc_info 是一个字典
         for h_id, doc_info, vector in zip(hash_ids, doc_infos, embeddings):
             
-            # 基础 source 结构
             source_data = {
                 "hash_id": h_id,
-                "text": doc_info.get("text"), # 从字典里取 text
+                "text": doc_info.get("text"),
                 "vector": vector,
                 "type": node_type,
             }
             
-            # 定义需要提取的元数据键名
             meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image", "file_path", "bucket_name"]
             
-            # 1. 动态将元数据写入 source 根层级（保留原有逻辑）
-            # 2. 同时构造一个 metadata 字典对象
             metadata_obj = {
                 "type": node_type
             }
             for key in meta_keys:
                 value = doc_info.get(key)
-                source_data[key] = value      # 写入根节点
-                metadata_obj[key] = value    # 写入 metadata 对象
+                source_data[key] = value
+                metadata_obj[key] = value
                 
-            # 将 metadata 作为一个整体字段存入
             source_data["metadata"] = metadata_obj
 
+            # 使用 op_type="create"，如果文档已存在会抛出异常但不影响其他文档
             action = {
                 "_index": index_name,
+                "_id": h_id,
+                "_op_type": "create",  # 只插入不存在的文档
                 "_source": source_data
             }
             actions.append(action)
         
         try:
-            success, failed = helpers.bulk(self.es, actions, stats_only=True, refresh=True)
-            print(f"ES批量插入完成: 成功 {success} 条, 失败 {failed} 条")
+            # 注意：使用 create 时，已存在的文档会报 version conflict 错误
+            # 但 bulk 操作会继续处理其他文档
+            success, failed = helpers.bulk(
+                self.es, actions, 
+                stats_only=True, 
+                refresh=True,
+                raise_on_error=False  # 不因为单个文档失败而停止
+            )
+            print(f"ES批量插入完成: 成功 {success} 条, 跳过已存在文档 {failed} 条")
         except Exception as e:
             print(f"ES批量插入异常: {e}")
         
