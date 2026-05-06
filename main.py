@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
@@ -83,7 +84,10 @@ warnings.filterwarnings("ignore")
 
 
 es_client = get_es_client()
-
+INDEX_PROCESS_WORKERS = int(
+    os.getenv("INDEX_PROCESS_WORKERS", str(max(1, max(4, os.cpu_count() or 1))))
+)
+logger.info(f"索引处理进程数设置为 {INDEX_PROCESS_WORKERS}")
 
 class IndexPayload(BaseModel):
     kb_name: str = Field(description="知识库索引名称")
@@ -125,6 +129,7 @@ class Response(BaseModel):
 
 class AppState:
     rag_model: LinearRAG = None
+    index_process_pool: ProcessPoolExecutor = None
 
 
 state = AppState()
@@ -209,14 +214,34 @@ def documents_to_passages(documents: List[Any]) -> Dict[str, List[Any]]:
     return passages
 
 
-def resolve_index_passages(payload: IndexPayload) -> Dict[str, List[Any]]:
+def _resolve_index_passages_worker(
+    bucket_name: str, file_path: str, file_id: str | None
+) -> Dict[str, List[Any]]:
     parser = PDFParser(
-        bucket_name=payload.bucket_name,
-        file_path=payload.file_path,
-        file_id=payload.file_id,
+        bucket_name=bucket_name,
+        file_path=file_path,
+        file_id=file_id,
     )
     documents = parser.get_chunk()
-    passages = documents_to_passages(documents)
+    return documents_to_passages(documents)
+
+
+def resolve_index_passages(payload: IndexPayload) -> Dict[str, List[Any]]:
+    if state.index_process_pool:
+        future = state.index_process_pool.submit(
+            _resolve_index_passages_worker,
+            payload.bucket_name,
+            payload.file_path,
+            payload.file_id,
+        )
+        passages = future.result()
+    else:
+        passages = _resolve_index_passages_worker(
+            payload.bucket_name,
+            payload.file_path,
+            payload.file_id,
+        )
+
     if not passages["text"]:
         raise HTTPException(status_code=400, detail="PDFParser did not return chunks")
     return passages
@@ -233,6 +258,8 @@ async def lifespan(app: FastAPI):
     log_dir = "logs/"
     os.makedirs(log_dir, exist_ok=True)
     setup_logging(os.path.join(log_dir, "log.txt"))
+    state.index_process_pool = ProcessPoolExecutor(max_workers=INDEX_PROCESS_WORKERS)
+    print(f"PDF解析进程池初始化完成，workers={INDEX_PROCESS_WORKERS}")
 
     embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
@@ -258,6 +285,9 @@ async def lifespan(app: FastAPI):
     print("系统初始化完成，准备就绪。")
     yield
     print("正在关闭系统...")
+    if state.index_process_pool:
+        state.index_process_pool.shutdown(wait=True, cancel_futures=True)
+        state.index_process_pool = None
 
 
 app = FastAPI(title="LinearRAG API Service", lifespan=lifespan)
