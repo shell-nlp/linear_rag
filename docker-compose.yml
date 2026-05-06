@@ -14,16 +14,6 @@ services:
     restart: always
     ports:
       - 12125:12125
-    
-    # 对应 --gpus all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
     # 环境变量配置
     environment:
       - TZ=Asia/Shanghai
