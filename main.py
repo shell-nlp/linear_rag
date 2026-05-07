@@ -105,10 +105,9 @@ warnings.filterwarnings("ignore")
 
 
 es_client = get_es_client()
-INDEX_PROCESS_WORKERS = int(
-    os.getenv("INDEX_PROCESS_WORKERS", str(max(1, max(4, os.cpu_count() or 1))))
-)
+INDEX_PROCESS_WORKERS = int(os.getenv("INDEX_PROCESS_WORKERS", 10))
 logger.info(f"索引处理进程数设置为 {INDEX_PROCESS_WORKERS}")
+
 
 class IndexPayload(BaseModel):
     kb_name: str = Field(description="知识库索引名称")
@@ -344,7 +343,9 @@ def index_documents(payload: IndexPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/admin_api/python-knowledge-management/index_single", response_model=Response)
+@app.post(
+    "/admin_api/python-knowledge-management/index_single", response_model=Response
+)
 def index_single_passage(payload: SinglePassagePayload):
     """
     向 ES 上传单独片段接口，文本会自动向量化
@@ -399,7 +400,9 @@ def retrieve_documents(payload: RetrievePayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/admin_api/python-knowledge-management/delete_files", response_model=Response)
+@app.post(
+    "/admin_api/python-knowledge-management/delete_files", response_model=Response
+)
 def delete_files(payload: DeletePayload):
     """
     删除文件索引接口
