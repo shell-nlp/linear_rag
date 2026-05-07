@@ -1,5 +1,7 @@
-import spacy
 from collections import defaultdict
+import os
+
+import spacy
 
 class SpacyNER:
     def __init__(self,spacy_model):
@@ -8,9 +10,15 @@ class SpacyNER:
     def batch_ner(self, hash_id_to_passage, max_workers):
         all_keys  = list(hash_id_to_passage.keys())
         passage_texts = list(hash_id_to_passage.values())
-        batch_size = max(1, len(passage_texts) // max_workers)       
+        requested_workers = int(os.getenv("SPACY_N_PROCESS", "1"))
+        worker_count = max(1, min(max_workers, requested_workers, len(passage_texts)))
+        batch_size = max(1, len(passage_texts) // worker_count)
         # 2. 对文本进行处理
-        docs_list = self.spacy_model.pipe(passage_texts, batch_size=batch_size, n_process=max_workers) 
+        docs_list = self.spacy_model.pipe(
+            passage_texts,
+            batch_size=batch_size,
+            n_process=worker_count,
+        )
         passage_hash_id_to_entities = {}
         for idx,doc in enumerate(docs_list):
             passage_hash_id = all_keys[idx]

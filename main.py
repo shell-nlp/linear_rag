@@ -42,17 +42,38 @@ from src.utils import compute_mdhash_id, get_es_client, setup_logging
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 client = nacos.NacosClient(NACOS_SERVER_ADDRESSES, namespace=NACOS_NAMESPACE)
 local_ip = LOCAL_IP
+_nacos_heartbeat_failed = False
 
 
 @scheduler.scheduled_job("interval", seconds=6)
 async def beat():
-    await asyncio.to_thread(
-        client.add_naming_instance,
-        SERVICE_NAME,
-        local_ip,
-        service_port,
-        group_name="DEFAULT_GROUP",
-    )
+    global _nacos_heartbeat_failed
+    try:
+        await asyncio.to_thread(
+            client.add_naming_instance,
+            SERVICE_NAME,
+            local_ip,
+            service_port,
+            group_name="DEFAULT_GROUP",
+        )
+        if _nacos_heartbeat_failed:
+            logger.info(
+                "Nacos heartbeat recovered for {} at {}:{}",
+                SERVICE_NAME,
+                local_ip,
+                service_port,
+            )
+            _nacos_heartbeat_failed = False
+    except Exception as exc:
+        if not _nacos_heartbeat_failed:
+            logger.warning(
+                "Nacos heartbeat failed for {} at {}:{}: {}",
+                SERVICE_NAME,
+                local_ip,
+                service_port,
+                exc,
+            )
+        _nacos_heartbeat_failed = True
 
 
 default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
