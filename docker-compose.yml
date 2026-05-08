@@ -57,5 +57,5 @@ services:
       - NACOS_SERVER_ADDRESSES=192.168.102.21:8848
       - NACOS_NAMESPACE=kg-hb-dev
       - SERVICE_NAME=python-knowledge-management
-      - LOCAL_IP=192.168.102.19
+      - LOCAL_IP=192.168.102.21
     command: ["sw-python", "run", "python", "main.py"]
