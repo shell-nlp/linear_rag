@@ -34,13 +34,20 @@ logger = logging.getLogger(__name__)
 
 
 class LinearRAG:
-    def __init__(self, global_config, es_client: Elasticsearch, neo4j_driver):
+    def __init__(
+        self,
+        global_config,
+        es_client: Elasticsearch,
+        neo4j_driver,
+        es_write_queue=None,
+    ):
         self.config = global_config
         logger.info(f"Initializing LinearRAG with config: {self.config}")
         self.spacy_ner = SpacyNER(self.config.spacy_model)
         self.es_client = es_client
         self.neo4j_driver = neo4j_driver
         self.embedding_model = self.config.embedding_model
+        self.es_write_queue = es_write_queue
 
     def retrieve(self, question: str, index_names: List[str], top_k: int = 5):
         """
@@ -1013,7 +1020,7 @@ class LinearRAG:
     def insert_text(
         self, passages_dict, embedding_model, batch_size, type, index_name, es_client
     ):
-        es = Customize_Elastic(es_client)
+        es = Customize_Elastic(es_client, self.es_write_queue)
 
         # 1. 基础校验
         if (
@@ -1182,8 +1189,11 @@ class LinearRAG:
 
         try:
             es_query = {"query": {"terms": {"file_id.keyword": file_ids}}}
-            res = self.es_client.delete_by_query(
-                index=index_name, body=es_query, refresh=True
+            es_tool = Customize_Elastic(self.es_client, self.es_write_queue)
+            res = es_tool.delete_by_query(
+                index_name=index_name,
+                body=es_query,
+                refresh=True,
             )
             print(f"[ES] 已从索引 {index_name} 中删除 {res.get('deleted')} 条文档。")
         except es_exceptions.NotFoundError:

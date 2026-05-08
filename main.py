@@ -27,6 +27,9 @@ from src.config import (
     NEO4J_PASSWORD,
     NEO4J_URI,
     NEO4J_USER,
+    REDIS_SENTINEL_MASTER,
+    REDIS_SENTINEL_NODES,
+    REDIS_URL,
     SERVICE_NAME,
     SPACY_MODEL,
     LinearRAGConfig,
@@ -34,10 +37,11 @@ from src.config import (
 )
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.es import Customize_Elastic
+from src.es_queue import RedisESWriteQueue
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
 from src.text_splitter import PDFParser
-from src.utils import compute_mdhash_id, get_es_client, setup_logging
+from src.utils import compute_mdhash_id, get_es_client, get_redis_client, setup_logging
 
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 client = nacos.NacosClient(NACOS_SERVER_ADDRESSES, namespace=NACOS_NAMESPACE)
@@ -150,9 +154,25 @@ class Response(BaseModel):
 class AppState:
     rag_model: LinearRAG = None
     index_process_pool: ProcessPoolExecutor = None
+    es_write_queue: RedisESWriteQueue = None
 
 
 state = AppState()
+
+
+def submit_es_write(operation: str, payload: dict):
+    if state.es_write_queue is None:
+        raise RuntimeError("ES write queue is not initialized")
+    return state.es_write_queue.submit(operation=operation, payload=payload)
+
+
+def describe_redis_connection() -> str:
+    if REDIS_SENTINEL_MASTER and REDIS_SENTINEL_NODES:
+        return (
+            f"sentinel master={REDIS_SENTINEL_MASTER}, "
+            f"nodes={REDIS_SENTINEL_NODES}"
+        )
+    return REDIS_URL
 
 
 def field_exists_in_mapping(properties: Dict[str, Any], field_name: str) -> bool:
@@ -280,10 +300,18 @@ async def lifespan(app: FastAPI):
     setup_logging(os.path.join(log_dir, "log.txt"))
     state.index_process_pool = ProcessPoolExecutor(max_workers=INDEX_PROCESS_WORKERS)
     print(f"PDF解析进程池初始化完成，workers={INDEX_PROCESS_WORKERS}")
+    redis_client = get_redis_client()
+    redis_client.ping()
 
     embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
     es_client = get_es_client()
+    state.es_write_queue = RedisESWriteQueue(
+        es_client=es_client,
+        redis_client=redis_client,
+    )
+    state.es_write_queue.start()
+    print(f"Redis ES 写入队列已启动: {describe_redis_connection()}")
 
     neo4j_driver = Neo4jGraph(
         uri=NEO4J_URI,
@@ -300,7 +328,10 @@ async def lifespan(app: FastAPI):
     )
 
     state.rag_model = LinearRAG(
-        global_config=config, es_client=es_client, neo4j_driver=neo4j_driver
+        global_config=config,
+        es_client=es_client,
+        neo4j_driver=neo4j_driver,
+        es_write_queue=state.es_write_queue,
     )
     print("系统初始化完成，准备就绪。")
     yield
@@ -308,6 +339,9 @@ async def lifespan(app: FastAPI):
     if state.index_process_pool:
         state.index_process_pool.shutdown(wait=True, cancel_futures=True)
         state.index_process_pool = None
+    if state.es_write_queue:
+        state.es_write_queue.close()
+        state.es_write_queue = None
 
 
 app = FastAPI(title="LinearRAG API Service", lifespan=lifespan)
@@ -359,7 +393,7 @@ def index_single_passage(payload: SinglePassagePayload):
             for text in payload.texts
         ]
 
-        es_tool = Customize_Elastic(es_client)
+        es_tool = Customize_Elastic(es_client, state.es_write_queue)
         es_tool.save_batch(
             hash_ids=hash_ids,
             doc_infos=[{"text": text} for text in payload.texts],
@@ -437,7 +471,13 @@ def delete_knowledgebase(request: DeleteKBRequest):
     删除知识库接口
     """
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    es_client.indices.delete(index=request.index_name, ignore_unavailable=True)
+    submit_es_write(
+        "delete_index",
+        {
+            "index_name": request.index_name,
+            "ignore_unavailable": True,
+        },
+    )
     return Response(
         code="0",
         msg="ok",
@@ -459,7 +499,13 @@ class CreateKBRequest(BaseModel):
 def create_knowledgebase(request: CreateKBRequest):
     """创建知识库"""
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    es_client.indices.create(index=request.index_name, body=default_settings)
+    submit_es_write(
+        "create_index",
+        {
+            "index_name": request.index_name,
+            "body": default_settings,
+        },
+    )
     return Response(
         code="0",
         msg="ok",

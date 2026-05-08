@@ -1,21 +1,20 @@
-from elasticsearch import helpers
 import re
 import logging
+
+from elasticsearch import helpers
 
 logger = logging.getLogger(__name__)
 
 class Customize_Elastic():
-    def __init__(self, es_client):
+    def __init__(self, es_client, write_queue=None):
         self.es = es_client
+        self.write_queue = write_queue
 
     def create_index_if_not_exists(self, vector_dim,index_name):
         """
         创建索引并指定 Mapping（防止自动创建导致向量字段类型错误）
         :param vector_dim: 向量维度，例如 OpenAI 是 1536，m3e 是 768
         """
-        if self.es.indices.exists(index=index_name):
-            return
-
         mapping = {
             "mappings": {
                 "properties": {
@@ -31,11 +30,61 @@ class Customize_Elastic():
                 }
             }
         }
+
+        if self.write_queue is not None:
+            return self.write_queue.submit(
+                "create_index",
+                {
+                    "index_name": index_name,
+                    "body": mapping,
+                    "only_if_missing": True,
+                },
+            )
+
+        return self._create_index_local(
+            index_name=index_name,
+            body=mapping,
+            only_if_missing=True,
+        )
+
+    def _create_index_local(self, index_name, body, only_if_missing=True):
+        """
+        本地直接创建索引，不经过队列。
+        """
+        if self.es.indices.exists(index=index_name):
+            if only_if_missing:
+                return {"created": False, "exists": True, "index_name": index_name}
+            raise ValueError(f"索引 {index_name} 已存在")
         try:
-            self.es.indices.create(index=index_name, body=mapping)
+            self.es.indices.create(index=index_name, body=body)
             logger.info(f"索引 {index_name} 创建成功")
+            return {"created": True, "index_name": index_name}
         except Exception as e:
             logger.error(f"创建索引失败: {e}")
+            if only_if_missing and self.es.indices.exists(index=index_name):
+                return {"created": False, "exists": True, "index_name": index_name}
+            raise
+
+    def delete_index(self, index_name, ignore_unavailable=True):
+        if self.write_queue is not None:
+            return self.write_queue.submit(
+                "delete_index",
+                {
+                    "index_name": index_name,
+                    "ignore_unavailable": ignore_unavailable,
+                },
+            )
+        return self._delete_index_local(
+            index_name=index_name,
+            ignore_unavailable=ignore_unavailable,
+        )
+
+    def _delete_index_local(self, index_name, ignore_unavailable=True):
+        response = self.es.indices.delete(
+            index=index_name,
+            ignore_unavailable=ignore_unavailable,
+        )
+        return {"acknowledged": response.get("acknowledged", True), "index_name": index_name}
 
     def save_batch(self, hash_ids, doc_infos, embeddings, index_name):
         """
@@ -45,26 +94,65 @@ class Customize_Elastic():
         :param doc_infos: 包含 text 和 元数据 的字典列表
         :param embeddings: 向量列表
         """
-        
-        self.create_index_if_not_exists(vector_dim=len(embeddings[0]) if len(embeddings) > 0 else 1024, index_name=index_name)
+        if self.write_queue is not None:
+            normalized_embeddings = [
+                vector.tolist() if hasattr(vector, "tolist") else vector
+                for vector in embeddings
+            ]
+            return self.write_queue.submit(
+                "save_batch",
+                {
+                    "hash_ids": hash_ids,
+                    "doc_infos": doc_infos,
+                    "embeddings": normalized_embeddings,
+                    "index_name": index_name,
+                },
+            )
+
+        return self._save_batch_local(hash_ids, doc_infos, embeddings, index_name)
+
+    def _save_batch_local(self, hash_ids, doc_infos, embeddings, index_name):
+        if not hash_ids:
+            return {"success": 0, "failed": 0}
+
+        vector_dim = len(embeddings[0]) if len(embeddings) > 0 else 1024
+        self._create_index_local(
+            index_name=index_name,
+            body={
+                "mappings": {
+                    "properties": {
+                        "hash_id": {"type": "keyword"},
+                        "text": {"type": "text"},
+                        "type": {"type": "keyword"},
+                        "vector": {
+                            "type": "dense_vector",
+                            "dims": vector_dim,
+                            "index": True,
+                            "similarity": "cosine",
+                        },
+                    }
+                }
+            },
+            only_if_missing=True,
+        )
 
         pattern = r"^([^-]+)"
         match = re.match(pattern, hash_ids[0])
         node_type = match.group(1) if match else "Unknown"
-        
+
         actions = []
-        
+
         for h_id, doc_info, vector in zip(hash_ids, doc_infos, embeddings):
-            
+            vector = vector.tolist() if hasattr(vector, "tolist") else vector
             source_data = {
                 "hash_id": h_id,
                 "text": doc_info.get("text"),
                 "vector": vector,
                 "type": node_type,
             }
-            
+
             meta_keys = ["file_name", "file_id", "pages_number", "segment_id", "ori_text", "content_table", "content_image", "file_path", "bucket_name"]
-            
+
             metadata_obj = {
                 "type": node_type
             }
@@ -72,30 +160,54 @@ class Customize_Elastic():
                 value = doc_info.get(key)
                 source_data[key] = value
                 metadata_obj[key] = value
-                
+
             source_data["metadata"] = metadata_obj
 
-            # 使用 op_type="create"，如果文档已存在会抛出异常但不影响其他文档
             action = {
                 "_index": index_name,
                 "_id": h_id,
-                "_op_type": "create",  # 只插入不存在的文档
+                "_op_type": "create",
                 "_source": source_data
             }
             actions.append(action)
-        
+
         try:
-            # 注意：使用 create 时，已存在的文档会报 version conflict 错误
-            # 但 bulk 操作会继续处理其他文档
             success, failed = helpers.bulk(
-                self.es, actions, 
-                stats_only=True, 
+                self.es,
+                actions,
+                stats_only=True,
                 refresh=True,
-                raise_on_error=False  # 不因为单个文档失败而停止
+                raise_on_error=False,
             )
             print(f"ES批量插入完成: 成功 {success} 条, 跳过已存在文档 {failed} 条")
+            return {"success": success, "failed": failed}
         except Exception as e:
             print(f"ES批量插入异常: {e}")
+            raise
+
+    def delete_by_query(self, index_name, body, refresh=True):
+        if self.write_queue is not None:
+            return self.write_queue.submit(
+                "delete_by_query",
+                {
+                    "index_name": index_name,
+                    "body": body,
+                    "refresh": refresh,
+                },
+            )
+        return self._delete_by_query_local(
+            index_name=index_name,
+            body=body,
+            refresh=refresh,
+        )
+
+    def _delete_by_query_local(self, index_name, body, refresh=True):
+        response = self.es.delete_by_query(
+            index=index_name,
+            body=body,
+            refresh=refresh,
+        )
+        return {"deleted": response.get("deleted", 0), "index_name": index_name}
         
     def es_search(self, index_name, **kwargs):
         """
@@ -176,9 +288,9 @@ class Customize_Elastic():
 
             # 示例逻辑
             if hasattr(self, 'namespace') and self.namespace:
-                response = self.es.delete_by_query(
-                    index=index_name,
-                    body={"query": {"term": {"type.keyword": self.namespace}}}, # 注意：delete_by_query 参数名通常是 body
+                response = self.delete_by_query(
+                    index_name=index_name,
+                    body={"query": {"term": {"type.keyword": self.namespace}}},
                 )
             else:
                  # 如果没有 namespace，这里原逻辑是抛错，这里保留原样

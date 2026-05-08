@@ -47,6 +47,16 @@ es_url = os.getenv("es_url", "http://192.168.102.19:9200")
 es_user = os.getenv("es_user", "elastic")
 es_password = os.getenv("es_password", "elastic@2024")
 
+# redis
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+REDIS_SENTINEL_MASTER = os.getenv("REDIS_SENTINEL_MASTER", "")
+REDIS_SENTINEL_NODES = os.getenv(
+    "REDIS_SENTINEL_NODES",
+    "",
+)
+
 # nacos
 NACOS_SERVER_ADDRESSES = os.getenv("NACOS_SERVER_ADDRESSES", "192.168.102.21:8848")
 NACOS_NAMESPACE = os.getenv("NACOS_NAMESPACE", "kg-hb-dev")

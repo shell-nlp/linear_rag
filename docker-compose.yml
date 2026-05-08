@@ -48,6 +48,11 @@ services:
       - es_url=http://192.168.102.19:9200
       - es_user=elastic
       - es_password=elastic@2024
+      # Redis 队列
+      - REDIS_DB=0
+      - REDIS_PASSWORD=admin
+      - REDIS_SENTINEL_MASTER=mymaster
+      - REDIS_SENTINEL_NODES=192.168.102.21:26379,192.168.102.21:26380,192.168.102.21:26381
       # nacos
       - NACOS_SERVER_ADDRESSES=192.168.102.21:8848
       - NACOS_NAMESPACE=kg-hb-dev
