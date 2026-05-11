@@ -4,32 +4,28 @@ import threading
 import time
 import uuid
 
-from src.es import Customize_Elastic
+from src.neo4j_write_ops import delete_file_nodes, save_graph_batches
 
 logger = logging.getLogger(__name__)
 
 
-class RedisESWriteQueue:
+class RedisNeo4jWriteQueue:
     """
-    使用 Redis List + 分布式锁实现的 ES 单写者队列。
-
-    - 所有实例都可以入队。
-    - 所有实例都会启动一个后台消费者线程，但只有拿到锁的实例会真正消费。
-    - 同一时刻全局只有一个实例顺序执行 ES 写操作。
+    使用 Redis List + 分布式锁实现的 Neo4j 单写者队列。
     """
 
     def __init__(
         self,
-        es_client,
+        neo4j_driver,
         redis_client,
-        queue_key: str = "rag:es:write:queue",
-        lock_key: str = "rag:es:write:leader",
-        result_prefix: str = "rag:es:write:result",
+        queue_key: str = "rag:neo4j:write:queue",
+        lock_key: str = "rag:neo4j:write:leader",
+        result_prefix: str = "rag:neo4j:write:result",
         lock_ttl_seconds: int = 60,
         result_ttl_seconds: int = 86400,
         submit_timeout_seconds: int = 3600,
     ):
-        self.es_client = es_client
+        self.neo4j_driver = neo4j_driver
         self.redis = redis_client
         self.queue_key = queue_key
         self.lock_key = lock_key
@@ -51,7 +47,7 @@ class RedisESWriteQueue:
         self._stop_event.clear()
         self._worker_thread = threading.Thread(
             target=self._worker_loop,
-            name="redis-es-write-worker",
+            name="redis-neo4j-write-worker",
             daemon=True,
         )
         self._worker_thread.start()
@@ -84,11 +80,11 @@ class RedisESWriteQueue:
                 result = json.loads(raw_result)
                 if result.get("ok"):
                     return result.get("data")
-                raise RuntimeError(result.get("error", "ES queue job failed"))
+                raise RuntimeError(result.get("error", "Neo4j queue job failed"))
             time.sleep(0.2)
 
         raise TimeoutError(
-            f"Timed out waiting for ES queue job {job_id} ({operation}) to complete"
+            f"Timed out waiting for Neo4j queue job {job_id} ({operation}) to complete"
         )
 
     def _worker_loop(self):
@@ -97,7 +93,7 @@ class RedisESWriteQueue:
                 time.sleep(1)
                 continue
 
-            logger.info("Acquired Redis ES write leadership: %s", self.instance_id)
+            logger.info("Acquired Redis Neo4j write leadership: %s", self.instance_id)
             self._start_heartbeat()
 
             try:
@@ -110,7 +106,7 @@ class RedisESWriteQueue:
                     try:
                         job = json.loads(raw_job)
                     except json.JSONDecodeError:
-                        logger.exception("Invalid ES queue job payload: %s", raw_job)
+                        logger.exception("Invalid Neo4j queue job payload: %s", raw_job)
                         continue
 
                     self._process_job(job)
@@ -128,7 +124,7 @@ class RedisESWriteQueue:
             data = self._dispatch(operation, payload)
             result = {"ok": True, "data": data}
         except Exception as exc:
-            logger.exception("ES queue job failed: %s", operation)
+            logger.exception("Neo4j queue job failed: %s", operation)
             result = {"ok": False, "error": str(exc)}
 
         self.redis.set(
@@ -138,44 +134,31 @@ class RedisESWriteQueue:
         )
 
     def _dispatch(self, operation: str, payload: dict):
-        es_tool = Customize_Elastic(self.es_client)
-
-        if operation == "create_index":
-            return es_tool._create_index_local(
-                index_name=payload["index_name"],
-                body=payload.get("body"),
-                only_if_missing=payload.get("only_if_missing", False),
+        if operation == "save_graph":
+            return save_graph_batches(
+                neo4j_driver=self.neo4j_driver,
+                kb_name=payload["kb_name"],
+                node_batch=payload["node_batch"],
+                edge_batch=payload["edge_batch"],
+                anchor_label=payload.get("anchor_label", "BaseNode"),
+                edge_label=payload.get("edge_label", "LINK"),
             )
 
-        if operation == "delete_index":
-            return es_tool._delete_index_local(
+        if operation == "delete_file_nodes":
+            return delete_file_nodes(
+                neo4j_driver=self.neo4j_driver,
                 index_name=payload["index_name"],
-                ignore_unavailable=payload.get("ignore_unavailable", True),
+                file_ids=payload["file_ids"],
             )
 
-        if operation == "save_batch":
-            return es_tool._save_batch_local(
-                hash_ids=payload["hash_ids"],
-                doc_infos=payload["doc_infos"],
-                embeddings=payload["embeddings"],
-                index_name=payload["index_name"],
-            )
-
-        if operation == "delete_by_query":
-            return es_tool._delete_by_query_local(
-                index_name=payload["index_name"],
-                body=payload["body"],
-                refresh=payload.get("refresh", True),
-            )
-
-        raise ValueError(f"Unsupported ES queue operation: {operation}")
+        raise ValueError(f"Unsupported Neo4j queue operation: {operation}")
 
     def _start_heartbeat(self):
         if self._heartbeat_thread and self._heartbeat_thread.is_alive():
             return
         self._heartbeat_thread = threading.Thread(
             target=self._heartbeat_loop,
-            name="redis-es-write-heartbeat",
+            name="redis-neo4j-write-heartbeat",
             daemon=True,
         )
         self._heartbeat_thread.start()
@@ -196,7 +179,7 @@ class RedisESWriteQueue:
                     break
                 self.redis.expire(self.lock_key, self.lock_ttl_seconds)
             except Exception:
-                logger.exception("Failed to refresh Redis ES write lock")
+                logger.exception("Failed to refresh Redis Neo4j write lock")
                 self._set_is_leader(False)
                 break
 
@@ -215,7 +198,7 @@ class RedisESWriteQueue:
             if self.redis.get(self.lock_key) == self.instance_id:
                 self.redis.delete(self.lock_key)
         except Exception:
-            logger.exception("Failed to release Redis ES write lock")
+            logger.exception("Failed to release Redis Neo4j write lock")
         finally:
             self._set_is_leader(False)
 

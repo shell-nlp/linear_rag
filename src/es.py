@@ -6,9 +6,8 @@ from elasticsearch import helpers
 logger = logging.getLogger(__name__)
 
 class Customize_Elastic():
-    def __init__(self, es_client, write_queue=None):
+    def __init__(self, es_client):
         self.es = es_client
-        self.write_queue = write_queue
 
     def create_index_if_not_exists(self, vector_dim,index_name):
         """
@@ -30,16 +29,6 @@ class Customize_Elastic():
                 }
             }
         }
-
-        if self.write_queue is not None:
-            return self.write_queue.submit(
-                "create_index",
-                {
-                    "index_name": index_name,
-                    "body": mapping,
-                    "only_if_missing": True,
-                },
-            )
 
         return self._create_index_local(
             index_name=index_name,
@@ -66,14 +55,6 @@ class Customize_Elastic():
             raise
 
     def delete_index(self, index_name, ignore_unavailable=True):
-        if self.write_queue is not None:
-            return self.write_queue.submit(
-                "delete_index",
-                {
-                    "index_name": index_name,
-                    "ignore_unavailable": ignore_unavailable,
-                },
-            )
         return self._delete_index_local(
             index_name=index_name,
             ignore_unavailable=ignore_unavailable,
@@ -86,6 +67,46 @@ class Customize_Elastic():
         )
         return {"acknowledged": response.get("acknowledged", True), "index_name": index_name}
 
+    def delete_by_ids(self, index_name, ids, refresh=True):
+        if isinstance(ids, str):
+            ids = [ids]
+        ids = list(dict.fromkeys(ids or []))
+
+        return self._delete_by_ids_local(
+            index_name=index_name,
+            ids=ids,
+            refresh=refresh,
+        )
+
+    def _delete_by_ids_local(self, index_name, ids, refresh=True):
+        if isinstance(ids, str):
+            ids = [ids]
+        ids = list(dict.fromkeys(ids or []))
+        if not ids:
+            return {"deleted": 0, "failed": 0, "index_name": index_name, "ids": []}
+
+        actions = [
+            {
+                "_op_type": "delete",
+                "_index": index_name,
+                "_id": doc_id,
+            }
+            for doc_id in ids
+        ]
+        success, failed = helpers.bulk(
+            self.es,
+            actions,
+            stats_only=True,
+            refresh=refresh,
+            raise_on_error=False,
+        )
+        return {
+            "deleted": success,
+            "failed": failed,
+            "index_name": index_name,
+            "ids": ids,
+        }
+
     def save_batch(self, hash_ids, doc_infos, embeddings, index_name):
         """
         批量保存文档，只插入不存在的文档（相同ID会被跳过）
@@ -94,21 +115,6 @@ class Customize_Elastic():
         :param doc_infos: 包含 text 和 元数据 的字典列表
         :param embeddings: 向量列表
         """
-        if self.write_queue is not None:
-            normalized_embeddings = [
-                vector.tolist() if hasattr(vector, "tolist") else vector
-                for vector in embeddings
-            ]
-            return self.write_queue.submit(
-                "save_batch",
-                {
-                    "hash_ids": hash_ids,
-                    "doc_infos": doc_infos,
-                    "embeddings": normalized_embeddings,
-                    "index_name": index_name,
-                },
-            )
-
         return self._save_batch_local(hash_ids, doc_infos, embeddings, index_name)
 
     def _save_batch_local(self, hash_ids, doc_infos, embeddings, index_name):
@@ -186,15 +192,6 @@ class Customize_Elastic():
             raise
 
     def delete_by_query(self, index_name, body, refresh=True):
-        if self.write_queue is not None:
-            return self.write_queue.submit(
-                "delete_by_query",
-                {
-                    "index_name": index_name,
-                    "body": body,
-                    "refresh": refresh,
-                },
-            )
         return self._delete_by_query_local(
             index_name=index_name,
             body=body,

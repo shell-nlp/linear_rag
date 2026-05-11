@@ -12,7 +12,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.config import (
     EMBEDDING_API_URL,
@@ -37,7 +37,7 @@ from src.config import (
 )
 from src.embedding import LocalOpenAIEmbeddingModel
 from src.es import Customize_Elastic
-from src.es_queue import RedisESWriteQueue
+from src.es_queue import RedisNeo4jWriteQueue
 from src.graphs_utils.neo4j_db import Neo4jGraph
 from src.LinearRAG import LinearRAG
 from src.text_splitter import PDFParser
@@ -126,6 +126,38 @@ class SinglePassagePayload(BaseModel):
     keyword: str = Field(description="关键词")
 
 
+class DeleteSinglePassagePayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    index_name: str = Field(description="知识库索引名称")
+    doc_id: str | List[str] | None = Field(
+        default=None, alias="_id", description="ES 文档 _id 或 _id 列表"
+    )
+    doc_ids: List[str] | None = Field(
+        default=None, alias="_ids", description="ES 文档 _id 列表"
+    )
+    ids: List[str] | None = Field(default=None, description="ES 文档 _id 列表")
+
+    @model_validator(mode="after")
+    def require_ids(self):
+        if not self.normalized_ids():
+            raise ValueError("At least one of _id, _ids, or ids is required")
+        return self
+
+    def normalized_ids(self) -> List[str]:
+        ids: List[str] = []
+        if self.doc_id:
+            if isinstance(self.doc_id, list):
+                ids.extend(self.doc_id)
+            else:
+                ids.append(self.doc_id)
+        if self.doc_ids:
+            ids.extend(self.doc_ids)
+        if self.ids:
+            ids.extend(self.ids)
+        return list(dict.fromkeys(doc_id for doc_id in ids if doc_id))
+
+
 class RetrievePayload(BaseModel):
     questions: str
     index_names: List[str]
@@ -154,16 +186,10 @@ class Response(BaseModel):
 class AppState:
     rag_model: LinearRAG = None
     index_process_pool: ProcessPoolExecutor = None
-    es_write_queue: RedisESWriteQueue = None
+    neo4j_write_queue: RedisNeo4jWriteQueue = None
 
 
 state = AppState()
-
-
-def submit_es_write(operation: str, payload: dict):
-    if state.es_write_queue is None:
-        raise RuntimeError("ES write queue is not initialized")
-    return state.es_write_queue.submit(operation=operation, payload=payload)
 
 
 def describe_redis_connection() -> str:
@@ -306,12 +332,6 @@ async def lifespan(app: FastAPI):
     embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
 
     es_client = get_es_client()
-    state.es_write_queue = RedisESWriteQueue(
-        es_client=es_client,
-        redis_client=redis_client,
-    )
-    state.es_write_queue.start()
-    print(f"Redis ES 写入队列已启动: {describe_redis_connection()}")
 
     neo4j_driver = Neo4jGraph(
         uri=NEO4J_URI,
@@ -319,6 +339,12 @@ async def lifespan(app: FastAPI):
         password=NEO4J_PASSWORD,
         database=NEO4J_DATABASE,
     )
+    state.neo4j_write_queue = RedisNeo4jWriteQueue(
+        neo4j_driver=neo4j_driver,
+        redis_client=redis_client,
+    )
+    state.neo4j_write_queue.start()
+    print(f"Redis Neo4j 写入队列已启动: {describe_redis_connection()}")
 
     config = LinearRAGConfig(
         embedding_model=embedding_model,
@@ -331,7 +357,7 @@ async def lifespan(app: FastAPI):
         global_config=config,
         es_client=es_client,
         neo4j_driver=neo4j_driver,
-        es_write_queue=state.es_write_queue,
+        neo4j_write_queue=state.neo4j_write_queue,
     )
     print("系统初始化完成，准备就绪。")
     yield
@@ -339,9 +365,9 @@ async def lifespan(app: FastAPI):
     if state.index_process_pool:
         state.index_process_pool.shutdown(wait=True, cancel_futures=True)
         state.index_process_pool = None
-    if state.es_write_queue:
-        state.es_write_queue.close()
-        state.es_write_queue = None
+    if state.neo4j_write_queue:
+        state.neo4j_write_queue.close()
+        state.neo4j_write_queue = None
 
 
 app = FastAPI(title="LinearRAG API Service", lifespan=lifespan)
@@ -393,7 +419,7 @@ def index_single_passage(payload: SinglePassagePayload):
             for text in payload.texts
         ]
 
-        es_tool = Customize_Elastic(es_client, state.es_write_queue)
+        es_tool = Customize_Elastic(es_client)
         es_tool.save_batch(
             hash_ids=hash_ids,
             doc_infos=[{"text": text} for text in payload.texts],
@@ -409,6 +435,39 @@ def index_single_passage(payload: SinglePassagePayload):
                 "message": f"Successfully indexed {len(payload.texts)} passages into {payload.index_name}",
                 "count": len(payload.texts),
                 "hash_ids": hash_ids,
+            },
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/admin_api/python-knowledge-management/delete_single", response_model=Response
+)
+def delete_single_passage(payload: DeleteSinglePassagePayload):
+    """
+    按 ES _id 删除 index_single 上传的片段
+    """
+    try:
+        ids = payload.normalized_ids()
+        es_tool = Customize_Elastic(es_client)
+        result = es_tool.delete_by_ids(
+            index_name=payload.index_name,
+            ids=ids,
+            refresh=True,
+        )
+
+        return Response(
+            code="0",
+            msg="ok",
+            data={
+                "status": "success",
+                "message": f"Deleted {result.get('deleted', 0)} passages from {payload.index_name}",
+                "ids": ids,
+                **result,
             },
         )
     except Exception as e:
@@ -471,13 +530,7 @@ def delete_knowledgebase(request: DeleteKBRequest):
     删除知识库接口
     """
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    submit_es_write(
-        "delete_index",
-        {
-            "index_name": request.index_name,
-            "ignore_unavailable": True,
-        },
-    )
+    es_client.indices.delete(index=request.index_name, ignore_unavailable=True)
     return Response(
         code="0",
         msg="ok",
@@ -499,13 +552,7 @@ class CreateKBRequest(BaseModel):
 def create_knowledgebase(request: CreateKBRequest):
     """创建知识库"""
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    submit_es_write(
-        "create_index",
-        {
-            "index_name": request.index_name,
-            "body": default_settings,
-        },
-    )
+    es_client.indices.create(index=request.index_name, body=default_settings)
     return Response(
         code="0",
         msg="ok",

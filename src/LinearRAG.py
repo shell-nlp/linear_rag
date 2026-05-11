@@ -1,7 +1,6 @@
 import logging
 import math
 import re
-import time
 import uuid
 import warnings
 from collections import defaultdict
@@ -12,7 +11,6 @@ import numpy as np
 from elasticsearch import Elasticsearch
 from elasticsearch import exceptions as es_exceptions
 from neo4j import exceptions as neo4j_exceptions
-from neo4j.exceptions import ServiceUnavailable, TransientError
 
 from src.es import Customize_Elastic
 from src.ner import SpacyNER
@@ -39,7 +37,7 @@ class LinearRAG:
         global_config,
         es_client: Elasticsearch,
         neo4j_driver,
-        es_write_queue=None,
+        neo4j_write_queue=None,
     ):
         self.config = global_config
         logger.info(f"Initializing LinearRAG with config: {self.config}")
@@ -47,7 +45,7 @@ class LinearRAG:
         self.es_client = es_client
         self.neo4j_driver = neo4j_driver
         self.embedding_model = self.config.embedding_model
-        self.es_write_queue = es_write_queue
+        self.neo4j_write_queue = neo4j_write_queue
 
     def retrieve(self, question: str, index_names: List[str], top_k: int = 5):
         """
@@ -696,16 +694,6 @@ class LinearRAG:
         edge_label = "LINK"
         anchor_label = "BaseNode"  # 全局锚点标签
 
-        # --- 2. 约束与索引 (保持不变) ---
-        try:
-            cypher_kb = f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:`{kb_name}`) REQUIRE n.orig_id IS UNIQUE"
-            self.neo4j_driver.execute_query(cypher_kb)
-            cypher_base = f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:`{anchor_label}`) REQUIRE n.orig_id IS UNIQUE"
-            self.neo4j_driver.execute_query(cypher_base)
-        except Exception as e:
-            print(f"索引创建提示: {e}")
-
-        # 获取数据
         graph_tuple = graph.to_dict_list(use_vids=False)
         nodes_list, edges_list = graph_tuple
 
@@ -738,37 +726,8 @@ class LinearRAG:
         # 【防死锁】节点排序
         node_batch.sort(key=lambda x: x["orig_id"])
 
-        # 节点 Cypher (使用 Anchor Label)
-        create_nodes_cypher = f"""
-        UNWIND $batch_data AS row
-        MERGE (n:`{anchor_label}` {{orig_id: row.orig_id}})
-        SET n:`{kb_name}`, n.name = row.name, n.type = row.type
-        WITH n, row
-        WHERE row.new_file_ids IS NOT NULL
-        SET n.file_id = REDUCE(s = coalesce(n.file_id, []), fid IN row.new_file_ids | 
-            CASE WHEN fid IN s THEN s ELSE s + fid END
-        )
-        """
-
-        node_batch_size = 2000
         total_nodes = len(node_batch)
         print(f"正在写入 {total_nodes} 个节点...")
-
-        # 节点写入循环
-        for i in range(0, total_nodes, node_batch_size):
-            batch = node_batch[i : i + node_batch_size]
-            if batch:
-                # 简单的重试封装
-                for attempt in range(3):
-                    try:
-                        self.neo4j_driver.execute_query(
-                            create_nodes_cypher, {"batch_data": batch}
-                        )
-                        break
-                    except TransientError:
-                        time.sleep(0.2 * (attempt + 1))
-                        if attempt == 2:
-                            raise
 
         # --- 4. 准备关系数据 (重点修改部分) ---
         edge_batch = []
@@ -789,47 +748,21 @@ class LinearRAG:
         # 【防死锁】关系排序
         edge_batch.sort(key=lambda x: (x["source"], x["target"]))
 
-        create_edges_cypher = f"""
-        UNWIND $batch_data AS row
-        MATCH (s:`{anchor_label}` {{orig_id: row.source}})
-        MATCH (t:`{anchor_label}` {{orig_id: row.target}})
-        WITH s, t, row
-        ORDER BY id(s), id(t)  // 这里的排序有助于减少单条语句内的死锁，但不能完全避免跨事务死锁
-        MERGE (s)-[r:`{edge_label}`]->(t)
-        SET r.weight = row.weight
-        """
-
-        # 【优化】关系写入的 Batch Size 建议调小，减少锁持有时间
-        edge_batch_size = 1000
         total_edges = len(edge_batch)
         print(f"开始写入 {total_edges} 条关系...")
+        if self.neo4j_write_queue is None:
+            raise RuntimeError("Neo4j write queue is not initialized")
 
-        # --- 关系写入循环 (增加重试机制) ---
-        for i in range(0, total_edges, edge_batch_size):
-            batch = edge_batch[i : i + edge_batch_size]
-            if not batch:
-                continue
-
-            # === 重试逻辑开始 ===
-            max_retries = 5
-            for attempt in range(max_retries):
-                try:
-                    self.neo4j_driver.execute_query(
-                        create_edges_cypher, {"batch_data": batch}
-                    )
-                    # print(f" -> 关系批次 {i//edge_batch_size + 1} 成功")
-                    break
-                except (TransientError, ServiceUnavailable) as e:
-                    # 如果是死锁或连接忙，进行等待和重试
-                    if attempt < max_retries - 1:
-                        sleep_time = 0.5 * (2**attempt)  # 指数退避: 0.5s, 1s, 2s, 4s...
-                        print(
-                            f" [警告] 关系写入发生死锁，正在重试 (第 {attempt+1} 次)... Error: {str(e)[:50]}"
-                        )
-                        time.sleep(sleep_time)
-                    else:
-                        print(f" [错误] 关系写入重试耗尽，放弃该批次。")
-                        raise e
+        self.neo4j_write_queue.submit(
+            "save_graph",
+            {
+                "kb_name": kb_name,
+                "node_batch": node_batch,
+                "edge_batch": edge_batch,
+                "anchor_label": anchor_label,
+                "edge_label": edge_label,
+            },
+        )
 
     # 添加“相邻段落”之间的边。
     # 这个函数假设输入的文本是有格式要求的（必须以 序号: 开头）。如果文本没有序号，这个函数将不会添加任何边。
@@ -1020,7 +953,7 @@ class LinearRAG:
     def insert_text(
         self, passages_dict, embedding_model, batch_size, type, index_name, es_client
     ):
-        es = Customize_Elastic(es_client, self.es_write_queue)
+        es = Customize_Elastic(es_client)
 
         # 1. 基础校验
         if (
@@ -1189,7 +1122,7 @@ class LinearRAG:
 
         try:
             es_query = {"query": {"terms": {"file_id.keyword": file_ids}}}
-            es_tool = Customize_Elastic(self.es_client, self.es_write_queue)
+            es_tool = Customize_Elastic(self.es_client)
             res = es_tool.delete_by_query(
                 index_name=index_name,
                 body=es_query,
@@ -1220,39 +1153,22 @@ class LinearRAG:
             """
 
         try:
-            with self.neo4j_driver.get_session() as session:
-                # 获取排序后的 ID 列表
-                result = session.run(find_ids_query, file_ids=file_ids)
-                sorted_node_ids = [record["node_id"] for record in result]
-
-                total_nodes = len(sorted_node_ids)
-                if total_nodes == 0:
-                    print(f"[Neo4j] 没有找到与 {file_ids} 相关的节点，无需操作。")
-                    return
-
-                print(
-                    f"[Neo4j] 找到 {total_nodes} 个相关节点，开始按 ID 顺序分批处理..."
-                )
-
-                # 分批执行
-                batch_size = 1000
-                deleted_count = 0
-
-                for i in range(0, total_nodes, batch_size):
-                    batch_ids = sorted_node_ids[i : i + batch_size]
-
-                    # 执行删除/更新
-                    # 如果这里频繁出现死锁，也可以像 save_igraph 一样加上 try-catch 重试机制
-                    update_result = session.run(
-                        update_query, batch_node_ids=batch_ids, file_ids=file_ids
-                    )
-                    summary = update_result.consume()
-                    deleted_count += summary.counters.nodes_deleted
-
-                print(
-                    f"[Neo4j] 操作完成。共处理节点 {total_nodes} 个，实际物理删除节点 {deleted_count} 个。"
-                )
-
+            if self.neo4j_write_queue is None:
+                raise RuntimeError("Neo4j write queue is not initialized")
+            result = self.neo4j_write_queue.submit(
+                "delete_file_nodes",
+                {
+                    "index_name": index_name,
+                    "file_ids": file_ids,
+                },
+            )
+            if result.get("total_nodes", 0) == 0:
+                print(f"[Neo4j] 没有找到与 {file_ids} 相关的节点，无需操作。")
+                return
+            print(
+                f"[Neo4j] 操作完成。共处理节点 {result.get('total_nodes', 0)} 个，"
+                f"实际物理删除节点 {result.get('deleted_nodes', 0)} 个。"
+            )
         except neo4j_exceptions.Neo4jError as e:
             print(f"[Neo4j] Cypher 执行错误: {e}")
         except Exception as e:
