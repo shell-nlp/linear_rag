@@ -12,9 +12,9 @@ from elasticsearch import Elasticsearch
 from elasticsearch import exceptions as es_exceptions
 from neo4j import exceptions as neo4j_exceptions
 
-from src.es import Customize_Elastic
-from src.ner import SpacyNER
-from src.utils import compute_mdhash_id
+from src.core.utils import compute_mdhash_id
+from src.infra.elasticsearch import Customize_Elastic
+from src.nlp.ner import SpacyNER
 
 # 忽略所有警告
 warnings.filterwarnings("ignore")

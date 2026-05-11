@@ -18,7 +18,7 @@ from langchain_text_splitters.character import (
 
 from loguru import logger
 
-from src.config import minio_access_key, minio_secret_key, minio_service_addresses
+from src.core.config import minio_access_key, minio_secret_key, minio_service_addresses
 
 
 def _split_text_with_regex_from_end(

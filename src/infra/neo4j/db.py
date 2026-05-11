@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from src.graphs_utils.base import GraphBase
+from src.infra.neo4j.base import GraphBase
 import uuid
 from neo4j import GraphDatabase
 from loguru import logger

@@ -3,7 +3,7 @@
 import os
 import warnings
 
-from src.config import (
+from src.core.config import (
     EMBEDDING_API_URL,
     EMBEDDING_MODEL_NAME,
     LLM_API_KEY,
@@ -20,10 +20,10 @@ from src.config import (
     es_url,
     es_user,
 )
-from src.embedding import LocalOpenAIEmbeddingModel
-from src.graphs_utils.neo4j_db import Neo4jGraph
-from src.LinearRAG import LinearRAG
-from src.utils import get_es_client, setup_logging
+from src.core.utils import get_es_client, setup_logging
+from src.infra.neo4j.db import Neo4jGraph
+from src.nlp.embedding import LocalOpenAIEmbeddingModel
+from src.services.linear_rag import LinearRAG
 
 warnings.filterwarnings("ignore")
 

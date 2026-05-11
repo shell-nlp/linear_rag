@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.config import (
+from src.core.config import (
     EMBEDDING_API_URL,
     EMBEDDING_MODEL_NAME,
     LLM_API_KEY,
@@ -35,13 +35,13 @@ from src.config import (
     LinearRAGConfig,
     embdding_dim,
 )
-from src.embedding import LocalOpenAIEmbeddingModel
-from src.es import Customize_Elastic
-from src.es_queue import RedisNeo4jWriteQueue
-from src.graphs_utils.neo4j_db import Neo4jGraph
-from src.LinearRAG import LinearRAG
-from src.text_splitter import PDFParser
-from src.utils import compute_mdhash_id, get_es_client, get_redis_client, setup_logging
+from src.core.utils import compute_mdhash_id, get_es_client, get_redis_client, setup_logging
+from src.infra.elasticsearch import Customize_Elastic
+from src.infra.neo4j.db import Neo4jGraph
+from src.infra.neo4j.queue import RedisNeo4jWriteQueue
+from src.nlp.embedding import LocalOpenAIEmbeddingModel
+from src.nlp.text_splitter import PDFParser
+from src.services.linear_rag import LinearRAG
 
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 client = nacos.NacosClient(NACOS_SERVER_ADDRESSES, namespace=NACOS_NAMESPACE)

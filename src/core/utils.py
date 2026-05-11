@@ -6,7 +6,7 @@ from elasticsearch import Elasticsearch
 from redis import Redis
 from redis.sentinel import Sentinel
 
-from src.config import (
+from src.core.config import (
     REDIS_DB,
     REDIS_PASSWORD,
     REDIS_SENTINEL_MASTER,

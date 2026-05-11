@@ -1,5 +1,5 @@
 from langchain_openai import OpenAIEmbeddings
-from src.config import LLM_BASE_URL
+from src.core.config import LLM_BASE_URL
 
 
 class LocalOpenAIEmbeddingModel:

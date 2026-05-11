@@ -4,7 +4,7 @@ import threading
 import time
 import uuid
 
-from src.neo4j_write_ops import delete_file_nodes, save_graph_batches
+from src.infra.neo4j.write_ops import delete_file_nodes, save_graph_batches
 
 logger = logging.getLogger(__name__)
 
