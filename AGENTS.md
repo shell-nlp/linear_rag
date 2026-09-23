@@ -8,7 +8,6 @@
 - `src/common/`：通用能力包和共享模型。
 - `src/common/models.py`：业务数据模型。
 - `src/common/search_store/`：搜索接口和具体搜索实现。
-- `src/common/graph_store/`：图接口和具体图实现。
 - `src/common/object_storage/`：对象存储接口和具体实现。
 - `src/common/model_providers/`：大模型和 Embedding 统一入口及实现。
 - `src/common/document_processing/`：PDF 解析、文本切片和实体识别。
@@ -25,9 +24,9 @@
 
 - 搜索数据库统一实现 `src/common/search_store/base.py` 的 `SearchStore`。
 - 搜索能力必须同时考虑向量检索、BM25 检索和混合检索。
-- 图数据库统一实现 `src/common/graph_store/base.py` 的 `GraphStore`。
-- 同一个图数据库实现只保留一个文件，Neo4j 的驱动、查询、写入、删除和队列统一放在 `src/common/graph_store/neo4j.py`。
-- `GraphStore` 只暴露语义级图操作，业务层不得直接使用 Cypher、GDS 或 Neo4j SDK。
+- 当前关系检索统一由搜索文档中的 `entity_ids`、`entities`、`previous_passage_id` 和 `next_passage_id` 承载。
+- 实体扩展必须通过 `SearchStore` 的结构化过滤执行，不新增 Neo4j、Redis 写队列或实时 PageRank。
+- 只有出现高频不定深度路径查询后，才重新评估独立关系存储；不得为假设需求保留兼容空包。
 - 大模型和 Embedding 统一从 `src/common/model_providers` 导入。
 - 大模型和 Embedding 不得依赖 LangChain，使用官方 `openai` SDK 或其它独立 SDK。
 - `langchain-text-splitters` 目前只允许用于文本切片，不得用于模型调用。
@@ -45,7 +44,7 @@
 ## 注释和测试
 
 - 新增或修改的代码必须补中文注释，重点说明职责、参数语义和实现差异。
-- 单元测试使用 `unittest`，不得依赖真实 Elasticsearch、Neo4j、Redis 或模型服务。
+- 单元测试使用 `unittest`，不得依赖真实 Elasticsearch 或模型服务。
 - 修改后至少运行：
 
 ```bash

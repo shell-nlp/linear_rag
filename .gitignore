@@ -12,7 +12,6 @@ qdrant_storage
 .dspy_cache
 # Mac
 .DS_Store
-tests/
 # VSCode
 .vscode/settings.json
 .chroma
@@ -279,4 +278,3 @@ src/frontend/temp
 
 results/*
 local_models/*
-neo4j_volumes/*

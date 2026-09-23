@@ -38,15 +38,6 @@ class SearchStore(Protocol):
 
         ...
 
-    def get_existing_ids(
-        self,
-        index_name: str,
-        ids: Sequence[str],
-    ) -> set[str]:
-        """查询已存在的文档 ID，用于增量去重。"""
-
-        ...
-
     def upsert_documents(
         self,
         index_name: str,

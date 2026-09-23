@@ -1,6 +1,0 @@
-
-FROM hubeirs-rag-base:v1
-
-COPY . /app
-
-CMD ["sw-python", "run", "python", "main.py"]

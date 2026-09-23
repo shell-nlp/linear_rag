@@ -4,8 +4,6 @@ from hashlib import md5
 
 from elasticsearch import Elasticsearch
 from loguru import logger
-from redis import Redis
-from redis.sentinel import Sentinel
 
 from src.settings import get_settings
 
@@ -51,32 +49,3 @@ def get_es_client():
     if settings.es_user and settings.es_password:
         basic_auth = (settings.es_user, settings.es_password)
     return Elasticsearch(settings.es_url, basic_auth=basic_auth)
-
-
-def get_redis_client():
-    """
-    获取 Redis 客户端
-    """
-    settings = get_settings()
-    if settings.redis_sentinel_master and settings.redis_sentinel_nodes:
-        sentinel_nodes = []
-        for raw_node in settings.redis_sentinel_nodes.split(","):
-            node = raw_node.strip()
-            if not node:
-                continue
-            host, port = node.split(":", 1)
-            sentinel_nodes.append((host.strip(), int(port.strip())))
-
-        sentinel = Sentinel(
-            sentinel_nodes,
-            password=settings.redis_password or None,
-            decode_responses=True,
-        )
-        return sentinel.master_for(
-            settings.redis_sentinel_master,
-            password=settings.redis_password or None,
-            db=settings.redis_db,
-            decode_responses=True,
-        )
-
-    return Redis.from_url(settings.redis_url, decode_responses=True)

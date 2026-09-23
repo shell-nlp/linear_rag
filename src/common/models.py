@@ -78,6 +78,7 @@ class SearchQuery:
     filters: dict[str, Any] = field(default_factory=dict)
     source_fields: list[str] | None = None
     text_fields: list[str] = field(default_factory=lambda: ["text"])
+    filter_only: bool = False
 
 
 @dataclass(slots=True)
@@ -86,71 +87,3 @@ class WriteResult:
 
     success: int = 0
     failed: int = 0
-
-
-@dataclass(slots=True)
-class GraphNode:
-    """图节点领域模型。"""
-
-    orig_id: str
-    node_type: str
-    name: str
-    file_ids: list[str] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class GraphEdge:
-    """图关系领域模型。"""
-
-    source: str
-    target: str
-    weight: float = 0.0
-    label: str = "LINK"
-
-
-@dataclass(slots=True)
-class GraphBatch:
-    """一次增量图写入的完整批次。"""
-
-    index_name: str
-    nodes: list[GraphNode]
-    edges: list[GraphEdge]
-    anchor_label: str = "BaseNode"
-    edge_label: str = "LINK"
-
-
-@dataclass(slots=True)
-class GraphWriteResult:
-    """图写入统计结果。"""
-
-    index_name: str
-    node_count: int
-    edge_count: int
-
-
-@dataclass(slots=True)
-class GraphDeleteResult:
-    """按文件删除图节点后的统计结果。"""
-
-    index_name: str
-    file_ids: list[str]
-    total_nodes: int
-    deleted_nodes: int
-
-
-@dataclass(slots=True)
-class RelatedPassage:
-    """图数据库返回的关联段落。"""
-
-    id: str
-    text: str
-    vector: list[float] | None = None
-
-
-@dataclass(slots=True)
-class EntityPassageLink:
-    """实体与段落之间的关联事实。"""
-
-    entity_id: str
-    passage_id: str
-    entity_name: str

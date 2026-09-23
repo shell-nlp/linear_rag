@@ -110,7 +110,7 @@ def delete_files(
     payload: DeleteFilesPayload,
     indexing_service: IndexingDependency,
 ):
-    """删除文件关联的搜索文档和图节点。"""
+    """删除文件关联的搜索文档及其预计算关系元数据。"""
 
     result = indexing_service.delete_files(
         index_name=payload.index_name,

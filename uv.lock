@@ -479,26 +479,6 @@ wheels = [
 ]
 
 [[package]]
-name = "igraph"
-version = "1.0.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "texttable" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/23/be/56bef1919005b4caf1f71522b300d359f7faeb7ae93a3b0baa9b4f146a87/igraph-1.0.0.tar.gz", hash = "sha256:2414d0be2e4d77ee5357807d100974b40f6082bb1bb71988ec46cfb6728651ee" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/a5/03/3278ad0ceb3ea0e84d8ae3a85bdded4d0e57853aeb802a200feb43847b93/igraph-1.0.0-cp39-abi3-macosx_10_15_x86_64.whl", hash = "sha256:c2cbc415e02523e5a241eecee82319080bf928a70b1ba299f3b3e25bf029b6d4" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/0d/bc/6281ec7f9baaf71ee57c3b1748da2d3148d15d253e1a03006f204aa68ca5/igraph-1.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:1a27753cd80680a8f676c2d5a467aaa4a95e510b30748398ec4e4aeb982130e8" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/2a/38/3cd6428a4ed4c09a56df05998438e7774fd1d799ee4fb8fc481674f5f7fc/igraph-1.0.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:a55dc3a2a4e3fc3eba42479910c1511bfc3ecb33cdf5f0406891fd85f14b5aee" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/7d/da/dd2867c25adbb41563720f14b5fc895c98bf88be682a3faff4f7b3118d2a/igraph-1.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:2d04c2c76f686fb1f554ee35dfd3085f5e73b7965ba6b4cf06d53e66b1955522" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/e5/40/243c118d34ab80382d7009c4dcb99b887384c3d2ce84d29eeac19e2a007a/igraph-1.0.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:f2b52dc1757fff0fed29a9f7a276d971a11db4211569ed78b9eab36288dfcc9d" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/1d/b7/88f433819c54b496cb0315fce28e658970cb20ff5dbd52a5a605ce2888de/igraph-1.0.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:05c79a2a8fca695b2f217a6fa7f2549f896f757d4db41be32a055400cb19cc30" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/7b/5d/8f7f6f619d374e959aa3664ebc4b24c10abc90c2e8efbed97f2623fadaf5/igraph-1.0.0-cp39-abi3-win32.whl", hash = "sha256:c2bce3cd472fec3dd9c4d8a3ea5b6b9be65fb30edf760beb4850760dd4f2d479" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/af/77/a85b3745cf40a0572bae2de8cd9c2a2a8af78e5cf3e880fc0a249114e609/igraph-1.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:faeff8ede0cf15eb4ded44b0fcea6e1886740146e60504c24ad2da14e0939563" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/ef/7e/5df541c37bdf6493035e89c22bd53f30d99b291bcda6c78e9a8afeecec2b/igraph-1.0.0-cp39-abi3-win_arm64.whl", hash = "sha256:b607cafc24b10a615e713ee96e58208ef27e0764af80140c7cc45d4724a3f2df" },
-]
-
-[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
@@ -679,10 +659,8 @@ dependencies = [
     { name = "elasticsearch" },
     { name = "fastapi" },
     { name = "httpx" },
-    { name = "igraph" },
     { name = "langchain-text-splitters" },
     { name = "loguru" },
-    { name = "neo4j" },
     { name = "numpy" },
     { name = "openai" },
     { name = "pandas" },
@@ -691,8 +669,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pymupdf" },
     { name = "pypdf2" },
-    { name = "python-igraph" },
-    { name = "redis" },
     { name = "requests" },
     { name = "spacy" },
     { name = "uvicorn" },
@@ -705,10 +681,8 @@ requires-dist = [
     { name = "elasticsearch", specifier = "==8.14.0" },
     { name = "fastapi", specifier = "==0.128.0" },
     { name = "httpx", specifier = "==0.28.1" },
-    { name = "igraph", specifier = "==1.0.0" },
     { name = "langchain-text-splitters", specifier = ">=1.1.2" },
     { name = "loguru", specifier = "==0.7.3" },
-    { name = "neo4j", specifier = "==6.0.3" },
     { name = "numpy", specifier = "<=1.26.4" },
     { name = "openai", specifier = "==2.14.0" },
     { name = "pandas", specifier = "<=3" },
@@ -717,8 +691,6 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pymupdf", specifier = ">=1.27.2.2" },
     { name = "pypdf2", specifier = ">=3.0.1" },
-    { name = "python-igraph", specifier = "==1.0.0" },
-    { name = "redis", specifier = ">=5.0.0" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "spacy", specifier = "==3.7.0" },
     { name = "uvicorn", specifier = "==0.40.0" },
@@ -847,18 +819,6 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/2d/f9/8e360bdfc3c44e267e7e046f0e0b9922766da92da26959a6963f597e6bb5/murmurhash-1.0.15-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:4fd8189ee293a09f30f4931408f40c28ccd42d9de4f66595f8814879339378bc" },
     { url = "https://mirrors.aliyun.com/pypi/packages/f9/31/97649680595b1096803d877ababb9a67c07f4378f177ec885eea28b9db6d/murmurhash-1.0.15-cp314-cp314t-win_amd64.whl", hash = "sha256:66395b1388f7daa5103db92debe06842ae3be4c0749ef6db68b444518666cdcc" },
     { url = "https://mirrors.aliyun.com/pypi/packages/76/66/4fce8755f25d77324401886c00017c556be7ca3039575b94037aff905385/murmurhash-1.0.15-cp314-cp314t-win_arm64.whl", hash = "sha256:c22e56c6a0b70598a66e456de5272f76088bc623688da84ef403148a6d41851d" },
-]
-
-[[package]]
-name = "neo4j"
-version = "6.0.3"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "pytz" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/60/b2/87534fc0520e5f9db1432bacc3f8d0ce024608010babc4f65b96e0c34906/neo4j-6.0.3.tar.gz", hash = "sha256:7fb79e166e281aafd67d521f6611763ebcdc529f26db506c5605f91ddcd825ea" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/ba/fe/55ed1d4636defb57fae1f7be7818820aa8071d45949c91ef8649930e70c5/neo4j-6.0.3-py3-none-any.whl", hash = "sha256:a92023854da96aed4270e0d03d6429cdd7f0d3335eae977370934f4732de5678" },
 ]
 
 [[package]]
@@ -1352,18 +1312,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-igraph"
-version = "1.0.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "igraph" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/2b/b6/3c1476ec6bf06348ecea1d76af6c6b3a024dddbcd2de120d3a0de1eab29b/python_igraph-1.0.0.tar.gz", hash = "sha256:6da7ac4e9f6a9cf03734798bed6fb082bb9274f2ae288f6099121f0332803018" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/31/5f/567fa047076d32d321bdafa248905a7186d2acee4916b046b11417af10d9/python_igraph-1.0.0-py3-none-any.whl", hash = "sha256:b0bb8d91cce2a1e0550fe45f9ec925bcd04152dfb5be3fa822b9f5f36eb3f380" },
-]
-
-[[package]]
 name = "pytz"
 version = "2026.1.post1"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
@@ -1416,15 +1364,6 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65" },
     { url = "https://mirrors.aliyun.com/pypi/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9" },
     { url = "https://mirrors.aliyun.com/pypi/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b" },
-]
-
-[[package]]
-name = "redis"
-version = "8.1.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb" },
 ]
 
 [[package]]
@@ -1636,15 +1575,6 @@ source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55" },
-]
-
-[[package]]
-name = "texttable"
-version = "1.7.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/1c/dc/0aff23d6036a4d3bf4f1d8c8204c5c79c4437e25e0ae94ffe4bbb55ee3c2/texttable-1.7.0.tar.gz", hash = "sha256:2d2068fb55115807d3ac77a4ca68fa48803e84ebb0ee2340f858107a36522638" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl", hash = "sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917" },
 ]
 
 [[package]]

@@ -42,6 +42,22 @@ FILTER_FIELD_ALIASES = {
     "bucket_name": "bucket_name.keyword",
 }
 
+# 关系扩展字段既写在文档顶层，也保留在 metadata 中供统一模型还原。
+RELATION_FIELD_MAPPINGS = {
+    "entity_ids": {"type": "keyword"},
+    "entity_names": {"type": "keyword"},
+    "entities": {
+        "properties": {
+            "id": {"type": "keyword"},
+            "name": {"type": "keyword"},
+            "count": {"type": "integer"},
+            "importance": {"type": "float"},
+        }
+    },
+    "previous_passage_id": {"type": "keyword"},
+    "next_passage_id": {"type": "keyword"},
+}
+
 
 def _keyword_mapping() -> dict[str, Any]:
     """构造同时支持全文检索和精确过滤的字段映射。"""
@@ -68,6 +84,7 @@ def build_index_mapping(vector_dim: int) -> dict[str, Any]:
         "file_name": _keyword_mapping(),
         "file_path": _keyword_mapping(),
         "bucket_name": _keyword_mapping(),
+        **RELATION_FIELD_MAPPINGS,
         "pages_number": {"type": "long"},
         "parent_text": _keyword_mapping(),
         "segment_id": {"type": "long"},
@@ -81,7 +98,7 @@ def build_index_mapping(vector_dim: int) -> dict[str, Any]:
         **metadata_properties,
         "hash_id": {"type": "keyword"},
         "metadata": {
-            "properties": metadata_properties,
+            "properties": dict(metadata_properties),
         },
         "vector": {
             "type": "dense_vector",
@@ -113,6 +130,11 @@ class ElasticsearchSearchStore:
         """创建索引，已存在时直接复用。"""
 
         if self.client.indices.exists(index=index_name):
+            # ES 允许为已有索引追加新字段，确保升级后的关系字段类型稳定。
+            self.client.indices.put_mapping(
+                index=index_name,
+                properties=RELATION_FIELD_MAPPINGS,
+            )
             return
         body = build_index_mapping(vector_dim)
         if settings:
@@ -137,31 +159,6 @@ class ElasticsearchSearchStore:
 
         response = self.client.indices.get_mapping(index=index_name)
         return response.get(index_name, {}).get("mappings", {})
-
-    def get_existing_ids(
-        self,
-        index_name: str,
-        ids: Sequence[str],
-    ) -> set[str]:
-        """批量查询已存在的文档 ID。"""
-
-        if not ids:
-            return set()
-        if not self.index_exists(index_name):
-            return set()
-        response = self.client.search(
-            index=index_name,
-            body={
-                "size": len(ids),
-                "query": {"ids": {"values": list(ids)}},
-                "_source": ["hash_id"],
-            },
-        )
-        return {
-            hit.get("_source", {}).get("hash_id") or hit.get("_id")
-            for hit in response.get("hits", {}).get("hits", [])
-            if hit.get("_source", {}).get("hash_id") or hit.get("_id")
-        }
 
     def upsert_documents(
         self,
@@ -281,11 +278,32 @@ class ElasticsearchSearchStore:
     def search(self, query: SearchQuery) -> list[SearchHit]:
         """根据检索模式路由到向量、BM25 或混合检索。"""
 
+        if query.filter_only:
+            return self._filter_search(query)
         if query.mode == SearchMode.VECTOR:
             return self._vector_search(query)
         if query.mode == SearchMode.BM25:
             return self._bm25_search(query)
         return self._hybrid_search(query)
+
+    def _filter_search(self, query: SearchQuery) -> list[SearchHit]:
+        """只按结构化字段召回，用于实体和相邻关系扩展。"""
+
+        existing_indices = self._existing_indices(query.index_names)
+        if not existing_indices:
+            return []
+        filter_query = self._build_filter_query(query.filters)
+        if not filter_query:
+            return []
+        response = self.client.search(
+            index=existing_indices,
+            body={
+                "size": query.top_k,
+                "query": {"constant_score": {"filter": filter_query}},
+                "_source": query.source_fields or True,
+            },
+        )
+        return self._response_to_hits(response)
 
     def _vector_search(self, query: SearchQuery) -> list[SearchHit]:
         """执行向量 KNN 检索。"""

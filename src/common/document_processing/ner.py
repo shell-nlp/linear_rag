@@ -36,7 +36,7 @@ class SpacyNER:
         """提取整篇段落实体以及句子级实体。"""
 
         sentence_to_entities = defaultdict(list)
-        unique_entities = set()
+        passage_entities = []
         passage_hash_id_to_entities = {}
         for ent in doc.ents:
             if ent.label_ == "ORDINAL" or ent.label_ == "CARDINAL":
@@ -45,25 +45,10 @@ class SpacyNER:
             ent_text = ent.text
             if ent_text not in sentence_to_entities[sent_text]:
                 sentence_to_entities[sent_text].append(ent_text)
-            unique_entities.add(ent_text)
-        passage_hash_id_to_entities[passage_hash_id] = list(unique_entities)
+            # 保留重复实体，索引服务需要据此计算段落内出现次数。
+            passage_entities.append(ent_text)
+        passage_hash_id_to_entities[passage_hash_id] = passage_entities
         return passage_hash_id_to_entities,sentence_to_entities
-
-    def question_ner(self, question: str):
-        """提取问题实体，兼容旧的调用名称。"""
-
-        doc = self.spacy_model(question)
-        question_entities = set()
-        for ent in doc.ents:
-            if ent.label_ == "ORDINAL" or ent.label_ == "CARDINAL":
-                continue
-            question_entities.add(ent.text.lower())
-        return question_entities
-
-    def extract_question_entities(self, question: str) -> set[str]:
-        """实现 EntityExtractor 端口的问题实体提取方法。"""
-
-        return self.question_ner(question)
 
     def extract_passage_entities(
         self,

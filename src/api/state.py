@@ -3,7 +3,6 @@ from __future__ import annotations
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
-from src.common.graph_store import Neo4jGraphStore
 from src.common.model_providers import EmbeddingProvider, LLMProvider
 from src.indexing.service import IndexingService
 from src.knowledge_bases.service import KnowledgeBaseService
@@ -20,4 +19,3 @@ class ApplicationState:
     embedding_provider: EmbeddingProvider | None = None
     llm_provider: LLMProvider | None = None
     index_process_pool: ProcessPoolExecutor | None = None
-    graph_store: Neo4jGraphStore | None = None

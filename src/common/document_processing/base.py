@@ -20,12 +20,7 @@ class DocumentParser(Protocol):
 
 
 class EntityExtractor(Protocol):
-    """实体识别端口，用于替换 spaCy、LLM 或其它 NER 实现。"""
-
-    def extract_question_entities(self, question: str) -> set[str]:
-        """提取问题中的实体。"""
-
-        ...
+    """段落实体识别端口，用于替换 spaCy、LLM 或其它 NER 实现。"""
 
     def extract_passage_entities(
         self,

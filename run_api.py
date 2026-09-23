@@ -7,7 +7,6 @@ from src.common.model_providers import create_embedding_provider
 from src.settings import get_settings
 from src.utils import get_es_client, setup_logging
 from src.common.document_processing.ner import SpacyNER
-from src.common.graph_store import Neo4jGraphStore
 from src.common.search_store import ElasticsearchSearchStore
 from src.indexing.service import IndexingService
 
@@ -52,10 +51,8 @@ def main():
     es_client = get_es_client()
     search_store = ElasticsearchSearchStore(es_client)
 
-    graph_store = Neo4jGraphStore.from_settings()
-
     print("开始创建索引...")
-    config = settings.runtime_config(embedding_model)
+    config = settings.runtime_config()
 
     document_list = [
         "密云水库坐落在燕山南麓密云区境内，距北京市中心约90km，总库容 43.75 亿 m3，为华北地区最大的水库。工程于 1958 年 9 月动工兴建，1959 年汛期拦洪，1960 年 9 月基本建成，是一座具有防洪、供水等多种功能综合利用、多年调节的大型水利枢纽，目前是首都北京最重要的地表饮用水源地。水库工程按千年一遇洪水设计，万年一遇洪水校核，坝顶高程 160.00m，校核水位 158.50m，设计水位 157.50m，汛期限制水位 152.00m，死水位 126.00m，调洪库容 11.08亿 m3，防洪库容 9.27 亿 m3，兴利库容 35.45 亿 m3，死库容4.19 亿 m3。密云水库水工建筑物及附属设施众多，主要包括 7 座主副坝、3 座溢洪道、7 条输泄水隧洞、1 座调节池、41 扇闸门、43 台启闭机、43.55km 高低压线路、36 台变压器、16台发电机等。",
@@ -77,7 +74,6 @@ def main():
     indexing_service = IndexingService(
         config=config,
         search_store=search_store,
-        graph_store=graph_store,
         embedding_provider=embedding_model,
         entity_extractor=SpacyNER(settings.spacy_model),
     )
