@@ -28,12 +28,17 @@ services:
       - SPACY_MODEL=zh_core_web_md
       - MAX_WORKERS=16
       - SPACY_N_PROCESS=1
-      # MinIO 配置
-      - minio_service_addresses=192.168.102.19:9001
-      - minio_access_key=minioadmin
-      - minio_secret_key=minioadmin
+      - MAX_UPLOAD_BYTES=104857600
+      # 对象存储配置，改为 minio 时同时填写三个 MINIO 参数
+      - OBJECT_STORAGE_PROVIDER=local
+      - LOCAL_STORAGE_ROOT=/app/.data/object-storage
+      - MINIO_ENDPOINT_URL=
+      - MINIO_ACCESS_KEY=
+      - MINIO_SECRET_KEY=
       # Elasticsearch 配置
       - es_url=http://192.168.102.19:9200
       - es_user=elastic
       - es_password=elastic@2024
+    volumes:
+      - ./.data/object-storage:/app/.data/object-storage
     command: ["python", "main.py"]

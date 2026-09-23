@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from src.api.constants import ADMIN_API_PREFIX
 from src.api.dependencies import (
-    ApplicationStateDependency,
+    FileIndexingWorkflowDependency,
     IndexingDependency,
     KnowledgeBaseDependency,
 )
@@ -12,45 +14,40 @@ from src.api.schemas import Response
 from src.indexing.schemas import (
     DeleteFilesPayload,
     DeleteSinglePassagePayload,
-    IndexPayload,
     SinglePassagePayload,
 )
-from src.indexing.workflow import resolve_index_passages
 
 router = APIRouter(prefix=ADMIN_API_PREFIX, tags=["索引"])
 
 
 @router.post("/index", response_model=Response)
 def index_documents(
-    payload: IndexPayload,
-    indexing_service: IndexingDependency,
-    state: ApplicationStateDependency,
+    workflow: FileIndexingWorkflowDependency,
+    kb_name: Annotated[str, Form(description="知识库索引名称")],
+    bucket_name: Annotated[str, Form(description="逻辑存储桶名称")],
+    file_path: Annotated[str, Form(description="桶内文件路径，使用正斜杠")],
+    file: Annotated[UploadFile, File(description="待持久化并索引的 PDF 文件")],
+    file_id: Annotated[str | None, Form(description="文件 ID，可选")] = None,
 ):
-    """建立 PDF 文件索引。"""
+    """接收 PDF 二进制，并以补偿事务并行执行持久化和索引。"""
 
-    passages = resolve_index_passages(
-        process_pool=state.index_process_pool,
-        bucket_name=payload.bucket_name,
-        file_path=payload.file_path,
-        file_id=payload.file_id,
-    )
-    if not passages["text"]:
-        raise HTTPException(status_code=400, detail="PDFParser did not return chunks")
-    result = indexing_service.index(passages=passages, kb_name=payload.kb_name)
-    file_ids = sorted(
-        {str(file_id) for file_id in passages.get("file_id", []) if file_id}
-    )
-    return Response(
-        code="0",
-        msg="ok",
-        data={
-            "status": "success",
-            "message": f"Successfully indexed into {payload.kb_name}",
-            "chunk_count": len(passages.get("text", [])),
-            "file_ids": file_ids,
-            **result,
-        },
-    )
+    try:
+        file_bytes = file.file.read(workflow.max_upload_bytes + 1)
+        result = workflow.index_uploaded_file(
+            file_bytes=file_bytes,
+            kb_name=kb_name,
+            bucket_name=bucket_name,
+            file_path=file_path,
+            file_id=file_id,
+            content_type=file.content_type,
+        )
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        file.file.close()
+    return Response(code="0", msg="ok", data=result)
 
 
 @router.post("/index_single", response_model=Response)

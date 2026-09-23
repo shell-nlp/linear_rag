@@ -10,11 +10,12 @@ class DocumentParser(Protocol):
 
     def parse(
         self,
+        file_bytes: bytes,
         bucket_name: str,
-        file_path: str,
-        file_id: str | None = None,
+        object_key: str,
+        file_id: str,
     ) -> list[ParsedDocument]:
-        """解析文档并返回可入库的片段。"""
+        """解析上传字节，并附加稳定的对象地址和文件标识。"""
 
         ...
 

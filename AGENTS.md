@@ -25,6 +25,9 @@
 - 搜索数据库统一实现 `src/common/search_store/base.py` 的 `SearchStore`。
 - 搜索能力必须同时考虑向量检索、BM25 检索和混合检索。
 - 当前关系检索统一由搜索文档中的 `entity_ids`、`entities`、`previous_passage_id` 和 `next_passage_id` 承载。
+- 文件持久化统一实现 `src/common/object_storage/base.py` 的 `ObjectStorage`；业务层不得直接依赖 MinIO 或本地文件 API。
+- `/index` 接收文件二进制，并行执行对象持久化和索引；任一侧失败必须补偿删除另一侧已写数据。
+- 未配置远端对象存储时使用本地实现，目录语义保持为 `存储根目录/bucket_name/file_path`。
 - 实体扩展必须通过 `SearchStore` 的结构化过滤执行，不新增 Neo4j、Redis 写队列或实时 PageRank。
 - 只有出现高频不定深度路径查询后，才重新评估独立关系存储；不得为假设需求保留兼容空包。
 - 大模型和 Embedding 统一从 `src/common/model_providers` 导入。

@@ -1,7 +1,6 @@
 import copy
 import io
 import re
-import uuid
 from typing import Any, Iterable, List, Optional
 
 import fitz
@@ -17,7 +16,6 @@ from langchain_text_splitters.character import (
 from loguru import logger
 
 from src.common.models import ParsedDocument
-from src.common.object_storage.base import ObjectStorage
 
 
 def _split_text_with_regex_from_end(
@@ -554,69 +552,50 @@ def convert_title_with_paragraph_breaks(text):
 
 
 class PDFParser:
-    """PDF 文档解析器，对象存储通过端口注入，便于替换 MinIO。"""
+    """PDF 文档解析器，只处理字节内容，不负责文件持久化。"""
 
     def __init__(
         self,
         bucket_name: str,
-        file_path: str,
-        file_id: str | None = None,
-        object_storage: ObjectStorage | None = None,
+        object_key: str,
+        file_id: str,
     ):
-        """保存解析参数，并允许调用方注入任意对象存储实现。"""
+        """保存文件来源元数据，实际内容由 get_chunk 直接接收。"""
 
         self.bucket_name = bucket_name
-        self.file_path = file_path
+        self.object_key = object_key
         self.file_id = file_id
-        self.object_storage = object_storage
-
-    def get_file_bytes(self, object_storage: ObjectStorage) -> bytes:
-        """从对象存储读取待解析文件。"""
-
-        logger.info(f"Bucket_name :{self.bucket_name}  Key: {self.file_path}")
-        return object_storage.get_bytes(self.bucket_name, self.file_path)
 
     def parse(
         self,
+        file_bytes: bytes,
         bucket_name: str | None = None,
-        file_path: str | None = None,
+        object_key: str | None = None,
         file_id: str | None = None,
     ) -> List[ParsedDocument]:
-        """实现 DocumentParser 端口，解析指定文件并返回统一文档模型。"""
+        """实现 DocumentParser 端口，解析上传字节并返回统一文档模型。"""
 
         if bucket_name is not None:
             self.bucket_name = bucket_name
-        if file_path is not None:
-            self.file_path = file_path
+        if object_key is not None:
+            self.object_key = object_key
         if file_id is not None:
             self.file_id = file_id
-        return self.get_chunk()
+        return self.get_chunk(file_bytes)
 
-    def get_chunk(self) -> List[ParsedDocument]:
-        """执行 PDF 下载、结构识别、内容抽取和切片。"""
+    def get_chunk(self, file_bytes: bytes) -> List[ParsedDocument]:
+        """执行 PDF 结构识别、内容抽取和切片。"""
 
-        if self.file_path:  # http://192.168.102.19:9001/1735128508277071872/tte.pdf
-            file_id = None
-            if self.file_id:
-                file_id = self.file_id
-                logger.info(f"使用用户传入的 file_id: {file_id}")
-            else:
-                file_id = str(uuid.uuid4())
-                logger.info(f"自动生成的 file_id: {file_id}")
-            object_storage = self.object_storage
-            if object_storage is None:
-                # 延迟导入默认适配器，避免业务层在导入阶段绑定 MinIO。
-                from src.common.object_storage.minio import MinioObjectStorage
-
-                object_storage = MinioObjectStorage()
+        if self.object_key:
+            file_id = self.file_id
+            logger.info(f"解析文件: {self.bucket_name}/{self.object_key}")
             use_table = False
             use_image = False
             logger.info(f"是否使用表格：{use_table}")
             logger.info(f"是否使用图片：{use_image}")
             # bucket_name, file_name = self.get_url_info()
             bucket_name = self.bucket_name
-            file_name = self.file_path.split("/")[-1]
-            file_bytes = self.get_file_bytes(object_storage)
+            file_name = self.object_key.split("/")[-1]
             bytes_io = io.BytesIO(file_bytes)
             structure_info = detect_pdf_structure(file_bytes=file_bytes)
 
@@ -624,13 +603,13 @@ class PDFParser:
             pdf_lens = None
             with pdfplumber.open(bytes_io) as pdf:
                 pdf_lens = len(pdf.pages)
-                logger.debug(f"{self.file_path} PDF页数：{pdf_lens}")
+                logger.debug(f"{self.object_key} PDF页数：{pdf_lens}")
                 for page_number, page in enumerate(pdf.pages, start=1):
                     try:
                         text = page.extract_text()
                     except Exception as e:
                         logger.warning(
-                            f"url: {self.file_path} 第{page_number}页抽取文本异常 {e} ，已跳过"
+                            f"对象: {self.object_key} 第{page_number}页抽取文本异常 {e}，已跳过"
                         )
                         continue
                     page_image_list = []
@@ -666,12 +645,6 @@ class PDFParser:
                                 )
                                 text = text_with_image_mark
 
-                                object_storage.put_bytes(
-                                    bucket_name=bucket_name,
-                                    object_name=image_name,
-                                    data=image_data_bin,
-                                    content_type="image/png",
-                                )
                             except IndexError as e:
                                 logger.warning("图片上传错误，已经跳过！")
                                 continue
@@ -760,7 +733,7 @@ class PDFParser:
                 for page_info in page_data
             ]
 
-            logger.debug(f"{self.file_path} 解析完成后的页数：{len(docs)}")
+            logger.debug(f"{self.object_key} 解析完成后的页数：{len(docs)}")
             logger.debug("开始切片！")
             split_strategy = structure_info["split_strategy"]
             logger.info(f"split_strategy: {split_strategy}")
@@ -970,7 +943,7 @@ class PDFParser:
                         "segment_id": segment_id,
                         "state": True,
                         "bucket_name": self.bucket_name,
-                        "file_path": self.file_path,
+                        "file_path": self.object_key,
                         # "tenant_id": requests.tenant_id,
                         # "shared_tenant_id_list": shared_tenant_id_list,
                     }
@@ -984,8 +957,3 @@ class PDFParser:
                 for doc in docs
             ]
 
-
-if __name__ == "__main__":
-    pdf_parser = PDFParser(bucket_name="111", file_path="星邺投标文件定稿.pdf")
-    docs = pdf_parser.get_chunk()
-    print(docs[0])

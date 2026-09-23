@@ -9,6 +9,7 @@ from src.indexing.service import IndexingService
 from src.knowledge_bases.service import KnowledgeBaseService
 from src.retrieval.service import RetrievalService
 from src.api import bootstrap
+from main import app
 
 
 class FakeEmbeddingProvider:
@@ -155,7 +156,7 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(documents[1].metadata["previous_passage_id"], documents[0].id)
 
     def test_identical_text_in_different_files_has_distinct_ids(self):
-        """相同文本必须按文件隔离，并清理旧版纯文本哈希文档。"""
+        """相同文本必须按文件隔离。"""
 
         search_store = FakeSearchStore()
         service = IndexingService(
@@ -174,7 +175,6 @@ class ArchitectureTests(unittest.TestCase):
 
         self.assertEqual(len(search_store.documents), 2)
         self.assertEqual(len(set(search_store.documents)), 2)
-        self.assertEqual(len(set(search_store.deleted_ids)), 1)
 
     def test_neighbors_are_isolated_by_file_path_without_file_id(self):
         """缺少文件 ID 时也不能把不同文件的段落连接起来。"""
@@ -200,6 +200,27 @@ class ArchitectureTests(unittest.TestCase):
         self.assertTrue(
             all(document.metadata["next_passage_id"] is None for document in documents)
         )
+
+    def test_same_file_id_in_different_paths_has_distinct_ids(self):
+        """业务文件 ID 重复时，对象路径仍应隔离段落 ID。"""
+
+        service = IndexingService(
+            build_config(),
+            FakeEmbeddingProvider(),
+            FakeSearchStore(),
+            FakeEntityExtractor(),
+        )
+        passages = {
+            "text": ["相同段落", "相同段落"],
+            "file_id": ["file-1", "file-1"],
+            "file_path": ["a.pdf", "b.pdf"],
+            "bucket_name": ["docs", "docs"],
+            "segment_id": [1, 1],
+        }
+
+        documents = service._build_passage_documents(passages)
+
+        self.assertEqual(len({document.id for document in documents}), 2)
 
     def test_bm25_retrieval_expands_entities_without_embedding(self):
         """BM25 主召回和实体扩展都应保持 BM25，且不调用向量模型。"""
@@ -276,6 +297,7 @@ class ArchitectureTests(unittest.TestCase):
             index_process_workers=1,
             spacy_model="test-model",
             embedding_dim=2,
+            max_upload_bytes=1024,
             runtime_config=lambda: build_config(),
         )
         providers = SimpleNamespace(embedding=object(), llm=object())
@@ -284,11 +306,14 @@ class ArchitectureTests(unittest.TestCase):
             patch.object(bootstrap, "setup_logging"),
             patch.object(bootstrap.os, "makedirs"),
             patch.object(bootstrap, "ProcessPoolExecutor"),
+            patch.object(bootstrap, "ThreadPoolExecutor"),
             patch.object(bootstrap, "create_model_providers", return_value=providers),
+            patch.object(bootstrap, "create_object_storage", return_value=object()),
             patch.object(bootstrap, "get_es_client", return_value=object()),
             patch.object(bootstrap, "ElasticsearchSearchStore", return_value=object()),
             patch.object(bootstrap, "SpacyNER", return_value=object()),
             patch.object(bootstrap, "IndexingService", return_value=object()),
+            patch.object(bootstrap, "FileIndexingWorkflow", return_value=object()),
             patch.object(bootstrap, "KnowledgeBaseService", return_value=object()),
             patch.object(bootstrap, "RetrievalService", return_value=object()) as service,
         ):
@@ -297,6 +322,22 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(
             set(service.call_args.kwargs),
             {"config", "search_store", "embedding_provider"},
+        )
+
+    def test_index_endpoint_uses_required_multipart_fields(self):
+        """文件索引接口必须直接接收二进制和对象地址表单字段。"""
+
+        schema = app.openapi()
+        operation = schema["paths"][
+            "/admin_api/python-knowledge-management/index"
+        ]["post"]
+        multipart = operation["requestBody"]["content"]["multipart/form-data"]
+        schema_name = multipart["schema"]["$ref"].rsplit("/", 1)[-1]
+        body_schema = schema["components"]["schemas"][schema_name]
+
+        self.assertEqual(
+            set(body_schema["required"]),
+            {"file", "kb_name", "bucket_name", "file_path"},
         )
 
 

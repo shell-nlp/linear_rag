@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -83,20 +84,33 @@ class Settings(BaseSettings):
         True,
         validation_alias="NEIGHBOR_EXPANSION_ENABLED",
     )
+    max_upload_bytes: int = Field(
+        100 * 1024 * 1024,
+        ge=1,
+        validation_alias="MAX_UPLOAD_BYTES",
+    )
     working_dir: str = Field("./import_qwen_new", validation_alias="WORKING_DIR")
 
-    # MinIO
-    minio_service_addresses: str = Field(
-        "192.168.102.19:9001",
-        validation_alias="minio_service_addresses",
+    # 对象存储：默认使用本地实现，显式选择 minio 时才连接远端。
+    object_storage_provider: Literal["local", "minio"] = Field(
+        "local",
+        validation_alias="OBJECT_STORAGE_PROVIDER",
+    )
+    local_storage_root: str = Field(
+        "./.data/object-storage",
+        validation_alias="LOCAL_STORAGE_ROOT",
+    )
+    minio_endpoint_url: str = Field(
+        "",
+        validation_alias="MINIO_ENDPOINT_URL",
     )
     minio_access_key: str = Field(
-        "minioadmin",
-        validation_alias="minio_access_key",
+        "",
+        validation_alias="MINIO_ACCESS_KEY",
     )
     minio_secret_key: str = Field(
-        "minioadmin",
-        validation_alias="minio_secret_key",
+        "",
+        validation_alias="MINIO_SECRET_KEY",
     )
 
     # Elasticsearch

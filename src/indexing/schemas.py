@@ -3,15 +3,6 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class IndexPayload(BaseModel):
-    """PDF 文件索引请求。"""
-
-    kb_name: str = Field(description="知识库索引名称")
-    bucket_name: str = Field(description="MinIO 桶名称")
-    file_path: str = Field(description="MinIO 文件路径")
-    file_id: str | None = Field(default=None, description="文件 ID，可选")
-
-
 class SinglePassagePayload(BaseModel):
     """独立文本片段索引请求。"""
 

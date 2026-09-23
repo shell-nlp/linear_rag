@@ -44,9 +44,18 @@ class IndexingService:
     def index(self, passages: Mapping[str, list[Any]], kb_name: str) -> dict[str, Any]:
         """预计算实体和相邻段落元数据，并覆盖写入搜索库。"""
 
+        documents, unique_entity_ids = self.prepare_documents(passages)
+        return self.write_documents(kb_name, documents, unique_entity_ids)
+
+    def prepare_documents(
+        self,
+        passages: Mapping[str, list[Any]],
+    ) -> tuple[list[SearchDocument], set[str]]:
+        """完成实体抽取和向量化，但不向搜索数据库提交数据。"""
+
         documents = self._build_passage_documents(passages)
         if not documents:
-            return {"status": "skipped", "new_passages": 0, "new_entities": 0}
+            return [], set()
 
         passage_texts = {document.id: document.text for document in documents}
         passage_entities = self.entity_extractor.extract_passage_entities(
@@ -58,7 +67,18 @@ class IndexingService:
             passage_entities,
         )
         self._attach_embeddings(documents)
-        self._delete_legacy_passage_ids(kb_name, documents)
+        return documents, unique_entity_ids
+
+    def write_documents(
+        self,
+        kb_name: str,
+        documents: list[SearchDocument],
+        unique_entity_ids: set[str],
+    ) -> dict[str, Any]:
+        """提交准备好的段落文档，返回统一写入统计。"""
+
+        if not documents:
+            return {"status": "skipped", "new_passages": 0, "new_entities": 0}
         write_result = self.search_store.upsert_documents(
             index_name=kb_name,
             documents=documents,
@@ -127,28 +147,6 @@ class IndexingService:
                 )
         return documents
 
-    def _delete_legacy_passage_ids(
-        self,
-        index_name: str,
-        documents: list[SearchDocument],
-    ) -> None:
-        """删除旧版纯文本哈希文档，避免重新索引后产生重复段落。"""
-
-        legacy_ids = list(
-            dict.fromkeys(
-                legacy_id
-                for document in documents
-                if (legacy_id := compute_mdhash_id(document.text, prefix="passage-"))
-                != document.id
-            )
-        )
-        if legacy_ids:
-            self.search_store.delete_documents_by_ids(
-                index_name=index_name,
-                ids=legacy_ids,
-                refresh=False,
-            )
-
     def _attach_entity_metadata(
         self,
         documents: list[SearchDocument],
@@ -191,6 +189,16 @@ class IndexingService:
             document.metadata["entity_names"] = [item["name"] for item in entities]
         return unique_entity_ids
 
+    def delete_passages(self, index_name: str, passage_ids: list[str]) -> None:
+        """按本次生成的段落 ID 精确删除索引文档。"""
+
+        if passage_ids:
+            self.search_store.delete_documents_by_ids(
+                index_name=index_name,
+                ids=passage_ids,
+                refresh=True,
+            )
+
     def _attach_embeddings(self, documents: list[SearchDocument]) -> None:
         """批量生成段落向量并归一化。"""
 
@@ -211,14 +219,12 @@ class IndexingService:
 
     @staticmethod
     def _source_key(metadata: Mapping[str, Any]) -> str:
-        """按可靠性选择文件标识，保证段落 ID 稳定且跨文件隔离。"""
+        """组合对象地址和文件 ID，保证段落 ID 稳定且跨文件隔离。"""
 
-        file_id = metadata.get("file_id")
-        if file_id:
-            return str(file_id)
         bucket_name = metadata.get("bucket_name") or ""
         file_path = metadata.get("file_path") or metadata.get("file_name") or "unknown"
-        return f"{bucket_name}:{file_path}"
+        file_id = metadata.get("file_id") or ""
+        return f"{bucket_name}:{file_path}:{file_id}"
 
     @staticmethod
     def _segment_sort_key(document: SearchDocument) -> tuple[int, str]:

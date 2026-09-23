@@ -6,6 +6,7 @@ from fastapi import Depends, Request
 
 from src.api.state import ApplicationState
 from src.indexing.service import IndexingService
+from src.indexing.workflow import FileIndexingWorkflow
 from src.knowledge_bases.service import KnowledgeBaseService
 from src.retrieval.service import RetrievalService
 
@@ -38,6 +39,16 @@ def get_retrieval_service(state: ApplicationStateDependency) -> RetrievalService
     return state.retrieval_service
 
 
+def get_file_indexing_workflow(
+    state: ApplicationStateDependency,
+) -> FileIndexingWorkflow:
+    """获取文件上传与索引事务工作流。"""
+
+    if state.file_indexing_workflow is None:
+        raise RuntimeError("FileIndexingWorkflow is not initialized")
+    return state.file_indexing_workflow
+
+
 def get_knowledge_base_service(
     state: ApplicationStateDependency,
 ) -> KnowledgeBaseService:
@@ -49,6 +60,10 @@ def get_knowledge_base_service(
 
 
 IndexingDependency = Annotated[IndexingService, Depends(get_indexing_service)]
+FileIndexingWorkflowDependency = Annotated[
+    FileIndexingWorkflow,
+    Depends(get_file_indexing_workflow),
+]
 RetrievalDependency = Annotated[RetrievalService, Depends(get_retrieval_service)]
 KnowledgeBaseDependency = Annotated[
     KnowledgeBaseService,
