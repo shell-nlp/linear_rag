@@ -36,6 +36,8 @@
 - 业务服务不得直接导入具体实现；只有启动层负责组装具体实现。
 - 功能模块的 `service.py` 不应包含 FastAPI 路由代码。
 - `router.py` 只负责 HTTP 参数、依赖注入和响应转换。
+- 新增、删除或修改任何 FastAPI 接口，以及请求字段、请求类型或响应结构时，必须同步更新根目录 `index.html` 的接口实验台。
+- `index.html` 必须覆盖当前全部业务接口，并保持请求路径、参数名称、`application/json` 与 `multipart/form-data` 的请求方式与后端一致。
 
 ## 配置
 

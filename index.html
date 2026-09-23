@@ -3,1061 +3,2030 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinearRAG 调试控制台</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="color-scheme" content="dark">
+    <title>LinearRAG 接口实验台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <style>
         :root {
-            --bg-primary: #f8f9fc;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #eef1f7;
-            --bg-card: #ffffff;
-            --border-color: #e2e6ed;
-            --border-glow: #c5cdd8;
-            --text-primary: #1a1d24;
-            --text-secondary: #5a6270;
-            --text-muted: #8b93a1;
-            --accent-cyan: #0891b2;
-            --accent-cyan-dim: #0e7490;
-            --accent-magenta: #c026d3;
-            --accent-green: #059669;
-            --accent-orange: #ea580c;
-            --accent-red: #dc2626;
-            --glow-cyan: 0 2px 8px rgba(8, 145, 178, 0.2);
-            --glow-magenta: 0 2px 8px rgba(192, 38, 211, 0.2);
-            --glow-green: 0 2px 8px rgba(5, 150, 105, 0.2);
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-            --shadow-lg: 0 8px 30px rgba(0,0,0,0.1);
+            --bg: #0e1418;
+            --surface: #151d22;
+            --surface-raised: #1a242a;
+            --surface-inset: #10171b;
+            --line: #2a373e;
+            --line-strong: #3b4b53;
+            --text: #e8eff3;
+            --text-soft: #bac7cd;
+            --muted: #7f929c;
+            --signal: #4cc9f0;
+            --success: #57d68d;
+            --warning: #f4c15d;
+            --danger: #ff7668;
+            --violet: #9b8cff;
+            --focus: rgba(76, 201, 240, 0.22);
+            --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+            --sans: "IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            --display: "Barlow Condensed", "Noto Sans SC", sans-serif;
+            --radius: 8px;
+            --shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
         }
 
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
+        }
+
+        html {
+            background: var(--bg);
         }
 
         body {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--bg-primary);
-            color: var(--text-primary);
             min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
             overflow-x: hidden;
         }
 
-        .header {
-            padding: 20px 40px;
-            border-bottom: 1px solid var(--border-color);
-            background: var(--bg-secondary);
-            box-shadow: var(--shadow-sm);
-            display: flex;
-            justify-content: space-between;
+        body::before {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            content: "";
+            background-image:
+                linear-gradient(rgba(76, 201, 240, 0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(76, 201, 240, 0.035) 1px, transparent 1px);
+            background-size: 32px 32px;
+            mask-image: linear-gradient(to bottom, black, transparent 88%);
+            pointer-events: none;
+        }
+
+        button,
+        input,
+        textarea,
+        select {
+            font: inherit;
+        }
+
+        button {
+            color: inherit;
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible,
+        select:focus-visible,
+        .route-item:focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: 2px;
+        }
+
+        .app-shell {
+            min-height: 100vh;
+        }
+
+        .topbar {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(460px, 760px);
+            gap: 28px;
             align-items: center;
+            min-height: 86px;
+            padding: 18px 28px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(14, 20, 24, 0.94);
+            backdrop-filter: blur(16px);
             position: sticky;
             top: 0;
-            z-index: 100;
+            z-index: 50;
         }
 
-        .logo-section {
+        .brand {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
+            min-width: 0;
         }
 
-        .logo {
-            width: 44px;
-            height: 44px;
-            background: linear-gradient(135deg, var(--accent-cyan), #06b6d4);
-            border-radius: 10px;
-            display: flex;
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 46px;
+            height: 46px;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius);
+            background: var(--surface-raised);
+            color: var(--signal);
+            box-shadow: inset 0 0 0 4px rgba(76, 201, 240, 0.035);
+            flex: 0 0 auto;
+        }
+
+        .brand-mark svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .brand-copy {
+            min-width: 0;
+        }
+
+        .brand-copy h1 {
+            font-family: var(--display);
+            font-size: 28px;
+            font-weight: 600;
+            line-height: 0.95;
+            text-transform: uppercase;
+        }
+
+        .brand-copy p {
+            margin-top: 5px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .connection-bar {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .field-label {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .input,
+        .textarea,
+        .select {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface-inset);
+            color: var(--text);
+            transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }
+
+        .input,
+        .select {
+            height: 42px;
+            padding: 0 12px;
+        }
+
+        .textarea {
+            min-height: 108px;
+            padding: 11px 12px;
+            line-height: 1.55;
+            resize: vertical;
+        }
+
+        .input:hover,
+        .textarea:hover,
+        .select:hover {
+            border-color: var(--line-strong);
+        }
+
+        .input:focus,
+        .textarea:focus,
+        .select:focus {
+            border-color: var(--signal);
+            outline: none;
+            box-shadow: 0 0 0 3px var(--focus);
+        }
+
+        .input::placeholder,
+        .textarea::placeholder {
+            color: #647781;
+        }
+
+        .select {
+            appearance: none;
+            background-image:
+                linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+            background-position:
+                calc(100% - 17px) 18px,
+                calc(100% - 12px) 18px;
+            background-repeat: no-repeat;
+            background-size: 5px 5px, 5px 5px;
+            padding-right: 34px;
+        }
+
+        .button {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            font-size: 18px;
-            color: white;
-            box-shadow: var(--glow-cyan);
+            gap: 8px;
+            min-height: 42px;
+            padding: 0 15px;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            background: transparent;
+            cursor: pointer;
+            font-family: var(--sans);
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
         }
 
-        .title-group h1 {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--text-primary);
-            letter-spacing: 1px;
+        .button svg {
+            width: 16px;
+            height: 16px;
         }
 
-        .title-group .subtitle {
-            font-size: 11px;
-            color: var(--text-muted);
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-top: 2px;
+        .button:hover {
+            transform: translateY(-1px);
         }
 
-        .status-indicator {
-            display: flex;
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button-primary {
+            border-color: rgba(76, 201, 240, 0.5);
+            background: var(--signal);
+            color: #071116;
+        }
+
+        .button-primary:hover {
+            background: #72d7f5;
+        }
+
+        .button-secondary {
+            border-color: var(--line);
+            background: var(--surface-raised);
+            color: var(--text-soft);
+        }
+
+        .button-secondary:hover {
+            border-color: var(--line-strong);
+            color: var(--text);
+        }
+
+        .button-icon {
+            width: 42px;
+            padding: 0;
+            border-color: var(--line);
+            background: var(--surface-raised);
+            color: var(--muted);
+        }
+
+        .button-icon:hover {
+            color: var(--signal);
+            border-color: var(--signal);
+        }
+
+        .status-pill {
+            display: inline-flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            font-size: 12px;
-            color: var(--text-secondary);
+            gap: 8px;
+            min-height: 42px;
+            padding: 0 13px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface-raised);
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 11px;
+            white-space: nowrap;
         }
 
         .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--accent-red);
+            background: var(--muted);
+            box-shadow: 0 0 0 4px rgba(127, 146, 156, 0.1);
         }
 
-        .status-dot.connected {
-            background: var(--accent-green);
+        .status-pill.online {
+            color: var(--success);
+            border-color: rgba(87, 214, 141, 0.35);
         }
 
-        .main-container {
-            max-width: 1300px;
-            margin: 0 auto;
-            padding: 32px 40px;
+        .status-pill.online .status-dot {
+            background: var(--success);
+            box-shadow: 0 0 0 4px rgba(87, 214, 141, 0.1);
         }
 
-        .console-grid {
+        .status-pill.offline {
+            color: var(--danger);
+            border-color: rgba(255, 118, 104, 0.35);
+        }
+
+        .status-pill.offline .status-dot {
+            background: var(--danger);
+            box-shadow: 0 0 0 4px rgba(255, 118, 104, 0.1);
+        }
+
+        .signal-strip {
             display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 24px;
+            grid-template-columns: auto 1fr auto;
+            gap: 28px;
+            align-items: center;
+            min-height: 58px;
+            padding: 10px 28px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(21, 29, 34, 0.82);
         }
 
-        @media (max-width: 1000px) {
-            .console-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .panel {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: var(--shadow-md);
-        }
-
-        .panel-header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--border-color);
+        .manifest-stats {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            background: var(--bg-tertiary);
+            gap: 22px;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--muted);
+            white-space: nowrap;
         }
 
-        .panel-title {
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .panel-title::before {
-            content: '';
-            width: 3px;
-            height: 14px;
-            background: var(--accent-cyan);
-            border-radius: 2px;
-        }
-
-        .panel-title.magenta::before { background: var(--accent-magenta); }
-        .panel-title.green::before { background: var(--accent-green); }
-
-        .panel-body {
-            padding: 20px;
-        }
-
-        .nav-tabs {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .nav-tab {
-            padding: 12px 16px;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 8px;
-            color: var(--text-secondary);
-            font-family: inherit;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .nav-tab:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .nav-tab.active {
-            background: var(--bg-secondary);
-            border-color: var(--border-color);
-            color: var(--accent-cyan);
-            font-weight: 500;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .nav-tab .icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .manifest-stat strong {
+            margin-right: 4px;
+            color: var(--text);
             font-size: 14px;
-            background: var(--bg-tertiary);
-        }
-
-        .nav-tab.active .icon {
-            background: var(--accent-cyan);
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.2s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 11px;
             font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 6px;
         }
 
-        .form-input {
+        .trace {
+            display: grid;
+            grid-template-columns: auto minmax(30px, 1fr) auto minmax(30px, 1fr) auto minmax(30px, 1fr) auto;
+            align-items: center;
+            max-width: 650px;
+            justify-self: center;
             width: 100%;
-            padding: 12px 14px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 13px;
-            transition: all 0.2s ease;
         }
 
-        .form-input:focus {
-            outline: none;
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
-        }
-
-        .form-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        textarea.form-input {
-            min-height: 100px;
-            resize: vertical;
-            line-height: 1.6;
-        }
-
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: var(--accent-cyan);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-cyan-dim);
-            box-shadow: var(--glow-cyan);
-        }
-
-        .btn-danger {
-            background: var(--accent-red);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #b91c1c;
-        }
-
-        .btn-secondary {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-        }
-
-        .btn-secondary:hover {
-            border-color: var(--accent-cyan);
-            color: var(--accent-cyan);
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .response-panel {
-            margin-top: 20px;
-        }
-
-        .response-box {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 16px;
-            min-height: 160px;
-            max-height: 400px;
-            overflow-y: auto;
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
-        .response-box::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .response-box::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
-
-        .response-box::-webkit-scrollbar-thumb {
-            background: var(--border-glow);
-            border-radius: 3px;
-        }
-
-        .response-box pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            color: var(--text-secondary);
-        }
-
-        .response-meta {
+        .trace-step {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border-color);
+            gap: 7px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            transition: color 180ms ease;
         }
 
-        .response-time {
+        .trace-node {
+            width: 8px;
+            height: 8px;
+            border: 1px solid var(--line-strong);
+            border-radius: 50%;
+            background: var(--surface);
+            transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+        }
+
+        .trace-step.active {
+            color: var(--warning);
+        }
+
+        .trace-step.active .trace-node {
+            border-color: var(--warning);
+            background: var(--warning);
+            box-shadow: 0 0 0 5px rgba(244, 193, 93, 0.1);
+            animation: pulse 900ms ease-in-out infinite alternate;
+        }
+
+        .trace-step.done {
+            color: var(--success);
+        }
+
+        .trace-step.done .trace-node {
+            border-color: var(--success);
+            background: var(--success);
+        }
+
+        .trace-step.error {
+            color: var(--danger);
+        }
+
+        .trace-step.error .trace-node {
+            border-color: var(--danger);
+            background: var(--danger);
+        }
+
+        .trace-line {
+            height: 1px;
+            background: var(--line);
+        }
+
+        .clock {
+            justify-self: end;
+            color: var(--muted);
+            font-family: var(--mono);
             font-size: 11px;
-            color: var(--text-muted);
+            white-space: nowrap;
         }
 
-        .response-status {
-            font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 12px;
-            background: var(--accent-green);
-            color: white;
-            font-weight: 500;
+        .bench-layout {
+            display: grid;
+            grid-template-columns: 292px minmax(0, 1fr);
+            min-height: calc(100vh - 144px);
         }
 
-        .response-status.error {
-            background: var(--accent-red);
+        .route-rail {
+            border-right: 1px solid var(--line);
+            background: rgba(21, 29, 34, 0.74);
+            min-width: 0;
         }
 
-        .retrieval-results {
+        .rail-header {
+            padding: 20px 18px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .rail-title-row {
             display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .result-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .result-card:hover {
-            border-color: var(--accent-cyan);
-            box-shadow: var(--glow-cyan);
-        }
-
-        .result-header {
-            display: flex;
+            align-items: center;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 13px;
         }
 
-        .result-score {
+        .rail-title {
+            font-family: var(--display);
+            font-size: 19px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .rail-count {
+            color: var(--signal);
+            font-family: var(--mono);
             font-size: 11px;
-            padding: 3px 8px;
-            border-radius: 12px;
-            background: var(--accent-cyan);
-            color: white;
-            font-weight: 500;
         }
 
-        .result-meta {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        .result-text {
-            font-size: 12px;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            max-height: 120px;
-            overflow: hidden;
+        .search-wrap {
             position: relative;
         }
 
-        .result-text::after {
-            content: '';
+        .search-wrap svg {
             position: absolute;
-            bottom: 0;
-            left: 0;
+            top: 50%;
+            left: 12px;
+            width: 15px;
+            height: 15px;
+            color: var(--muted);
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .search-wrap .input {
+            padding-left: 36px;
+        }
+
+        .route-nav {
+            padding: 10px 10px 28px;
+        }
+
+        .route-group {
+            margin-top: 13px;
+        }
+
+        .route-group:first-child {
+            margin-top: 0;
+        }
+
+        .route-group-label {
+            padding: 0 9px 7px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .route-item {
+            display: grid;
+            grid-template-columns: 48px minmax(0, 1fr);
+            gap: 9px;
             width: 100%;
-            height: 30px;
-            background: linear-gradient(transparent, var(--bg-secondary));
+            margin-bottom: 4px;
+            padding: 10px 9px;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            background: transparent;
+            color: var(--text-soft);
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 30px 20px;
-            color: var(--text-muted);
+        .route-item:hover {
+            border-color: var(--line);
+            background: rgba(255, 255, 255, 0.025);
+            color: var(--text);
         }
 
-        .empty-state .icon {
-            font-size: 36px;
-            margin-bottom: 12px;
-            opacity: 0.4;
+        .route-item.active {
+            border-color: rgba(76, 201, 240, 0.42);
+            background: rgba(76, 201, 240, 0.075);
+            color: var(--text);
+            box-shadow: inset 3px 0 0 var(--signal);
         }
 
-        .loading {
-            display: flex;
+        .method-badge {
+            align-self: start;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
+            min-height: 21px;
+            padding: 0 6px;
+            border: 1px solid currentColor;
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: 9px;
+            font-weight: 600;
+        }
+
+        .method-get {
+            color: var(--success);
+        }
+
+        .method-post {
+            color: var(--signal);
+        }
+
+        .route-copy {
+            min-width: 0;
+        }
+
+        .route-name {
+            display: block;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: 500;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .route-path {
+            display: block;
+            overflow: hidden;
+            margin-top: 4px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 9px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .workspace {
+            min-width: 0;
+            padding: 24px;
+        }
+
+        .workspace-frame {
+            min-height: calc(100vh - 192px);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: rgba(21, 29, 34, 0.9);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .endpoint-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 24px;
+            align-items: center;
+            padding: 22px 24px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-raised);
+        }
+
+        .endpoint-identity {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .endpoint-method {
+            display: grid;
+            place-items: center;
+            width: 54px;
+            height: 54px;
+            border: 1px solid rgba(76, 201, 240, 0.42);
+            border-radius: var(--radius);
+            background: rgba(76, 201, 240, 0.08);
+            color: var(--signal);
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 600;
+            flex: 0 0 auto;
+        }
+
+        .endpoint-title-wrap {
+            min-width: 0;
+        }
+
+        .endpoint-title {
+            overflow: hidden;
+            font-family: var(--display);
+            font-size: 26px;
+            font-weight: 600;
+            line-height: 1.05;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .endpoint-path {
+            display: block;
+            overflow: hidden;
+            margin-top: 6px;
+            color: var(--text-soft);
+            font-family: var(--mono);
+            font-size: 11px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .endpoint-actions {
+            display: flex;
+            align-items: center;
             gap: 10px;
-            padding: 30px;
-            color: var(--text-muted);
         }
 
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border-color);
-            border-top-color: var(--accent-cyan);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .group-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 0 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+            white-space: nowrap;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .endpoint-description {
+            min-height: 56px;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--line);
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.7;
         }
 
-        .toast-container {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
+        .request-response {
+            display: grid;
+            grid-template-columns: minmax(340px, 0.92fr) minmax(360px, 1.08fr);
+            min-height: 500px;
+        }
+
+        .pane {
+            min-width: 0;
+        }
+
+        .request-pane {
+            border-right: 1px solid var(--line);
+        }
+
+        .pane-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 48px;
+            padding: 0 18px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(16, 23, 27, 0.72);
+        }
+
+        .pane-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-soft);
+            font-family: var(--mono);
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .pane-title svg {
+            width: 14px;
+            height: 14px;
+            color: var(--signal);
+        }
+
+        .pane-meta {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 9px;
+            text-transform: uppercase;
+        }
+
+        .request-form {
+            padding: 20px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .field {
+            min-width: 0;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        .field-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 7px;
+        }
+
+        .field-label {
+            margin: 0;
+            color: var(--text-soft);
+            font-family: var(--sans);
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: none;
+        }
+
+        .required-mark {
+            color: var(--danger);
+        }
+
+        .field-type {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 9px;
+        }
+
+        .file-drop {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            min-height: 84px;
+            padding: 14px;
+            border: 1px dashed var(--line-strong);
+            border-radius: var(--radius);
+            background: var(--surface-inset);
+            cursor: pointer;
+            transition: border-color 160ms ease, background 160ms ease;
+        }
+
+        .file-drop:hover,
+        .file-drop.has-file {
+            border-color: var(--signal);
+            background: rgba(76, 201, 240, 0.045);
+        }
+
+        .file-drop input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+        }
+
+        .file-icon {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--signal);
+            flex: 0 0 auto;
+        }
+
+        .file-icon svg {
+            width: 19px;
+            height: 19px;
+        }
+
+        .file-copy {
+            min-width: 0;
+        }
+
+        .file-name {
+            display: block;
+            overflow: hidden;
+            color: var(--text-soft);
+            font-size: 13px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-note {
+            display: block;
+            margin-top: 4px;
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid var(--line);
+        }
+
+        .request-note {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .response-pane {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            z-index: 1000;
+            min-height: 0;
+            background: rgba(16, 23, 27, 0.48);
+        }
+
+        .response-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metric {
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 9px;
+            white-space: nowrap;
+        }
+
+        .metric strong {
+            color: var(--text-soft);
+            font-weight: 500;
+        }
+
+        .response-view {
+            flex: 1;
+            min-height: 400px;
+            max-height: calc(100vh - 310px);
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .response-view::-webkit-scrollbar,
+        .route-nav::-webkit-scrollbar {
+            width: 7px;
+            height: 7px;
+        }
+
+        .response-view::-webkit-scrollbar-thumb,
+        .route-nav::-webkit-scrollbar-thumb {
+            border-radius: 999px;
+            background: var(--line-strong);
+        }
+
+        .response-code {
+            color: #cbd8de;
+            font-family: var(--mono);
+            font-size: 11px;
+            line-height: 1.72;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .response-empty {
+            display: grid;
+            place-items: center;
+            min-height: 360px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .response-empty svg {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 12px;
+            color: var(--line-strong);
+        }
+
+        .response-empty p {
+            max-width: 280px;
+            font-size: 13px;
+            line-height: 1.65;
+        }
+
+        .response-loading {
+            display: grid;
+            place-items: center;
+            min-height: 360px;
+            color: var(--warning);
+        }
+
+        .scan {
+            position: relative;
+            width: min(280px, 80%);
+            height: 3px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--line);
+        }
+
+        .scan::after {
+            position: absolute;
+            inset: 0;
+            width: 42%;
+            content: "";
+            background: var(--warning);
+            animation: scan 1s ease-in-out infinite;
+        }
+
+        .response-loading span {
+            margin-top: 16px;
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        .response-error {
+            padding: 16px;
+            border: 1px solid rgba(255, 118, 104, 0.35);
+            border-radius: var(--radius);
+            background: rgba(255, 118, 104, 0.06);
+            color: #ffc0ba;
+            font-family: var(--mono);
+            font-size: 11px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .toast-stack {
+            position: fixed;
+            right: 22px;
+            bottom: 22px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            width: min(360px, calc(100vw - 44px));
         }
 
         .toast {
-            padding: 12px 20px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            box-shadow: var(--shadow-lg);
-            display: flex;
-            align-items: center;
+            display: grid;
+            grid-template-columns: auto 1fr;
             gap: 10px;
-            animation: slideIn 0.3s ease;
-            min-width: 260px;
+            align-items: start;
+            padding: 13px 14px;
+            border: 1px solid var(--line-strong);
+            border-left-width: 3px;
+            border-radius: var(--radius);
+            background: var(--surface-raised);
+            box-shadow: var(--shadow);
+            animation: toast-in 180ms ease-out;
         }
 
-        .toast.success { border-left: 4px solid var(--accent-green); }
-        .toast.error { border-left: 4px solid var(--accent-red); }
-        .toast.info { border-left: 4px solid var(--accent-cyan); }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .toast svg {
+            width: 16px;
+            height: 16px;
+            margin-top: 1px;
         }
 
-        .toast-icon {
-            font-size: 18px;
+        .toast.success {
+            border-left-color: var(--success);
+            color: var(--success);
         }
 
-        .toast.success .toast-icon { color: var(--accent-green); }
-        .toast.error .toast-icon { color: var(--accent-red); }
-        .toast.info .toast-icon { color: var(--accent-cyan); }
+        .toast.error {
+            border-left-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .toast.info {
+            border-left-color: var(--signal);
+            color: var(--signal);
+        }
 
         .toast-message {
-            font-size: 13px;
-            color: var(--text-primary);
+            color: var(--text-soft);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.55; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scan {
+            from { transform: translateX(-105%); }
+            to { transform: translateX(245%); }
+        }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 1120px) {
+            .topbar {
+                grid-template-columns: 1fr;
+            }
+
+            .connection-bar {
+                grid-template-columns: minmax(180px, 1fr) auto auto;
+            }
+
+            .signal-strip {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .trace {
+                justify-self: stretch;
+                max-width: none;
+            }
+
+            .clock {
+                justify-self: start;
+            }
+
+            .bench-layout {
+                grid-template-columns: 246px minmax(0, 1fr);
+            }
+
+            .request-response {
+                grid-template-columns: 1fr;
+            }
+
+            .request-pane {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .response-view {
+                max-height: 620px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .topbar,
+            .signal-strip,
+            .workspace {
+                padding-right: 15px;
+                padding-left: 15px;
+            }
+
+            .brand-copy h1 {
+                font-size: 24px;
+            }
+
+            .connection-bar {
+                grid-template-columns: 1fr auto;
+            }
+
+            .connection-bar .status-pill {
+                grid-column: 1 / -1;
+            }
+
+            .bench-layout {
+                display: block;
+                min-height: 0;
+            }
+
+            .route-rail {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .route-nav {
+                display: grid;
+                grid-auto-flow: column;
+                grid-auto-columns: minmax(210px, 76vw);
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 16px;
+            }
+
+            .route-group {
+                display: contents;
+            }
+
+            .route-group-label {
+                display: none;
+            }
+
+            .workspace {
+                padding-top: 15px;
+            }
+
+            .workspace-frame {
+                min-height: 0;
+            }
+
+            .endpoint-header {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 18px;
+            }
+
+            .endpoint-actions {
+                justify-content: space-between;
+            }
+
+            .endpoint-description {
+                padding: 14px 18px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .field.full {
+                grid-column: auto;
+            }
+
+            .form-actions {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .form-actions .button {
+                width: 100%;
+            }
+
+            .request-note {
+                text-align: center;
+            }
+
+            .response-view {
+                max-height: 520px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="grid-overlay"></div>
-
-    <header class="header">
-        <div class="logo-section">
-            <div class="logo">LR</div>
-            <div class="title-group">
-                <h1>LinearRAG Console</h1>
-                <div class="subtitle">调试控制台</div>
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark">
+                    <i data-lucide="audio-waveform" aria-hidden="true"></i>
+                </div>
+                <div class="brand-copy">
+                    <h1>LinearRAG Signal Bench</h1>
+                    <p>Route manifest / request instrumentation</p>
+                </div>
             </div>
-        </div>
-        <div class="status-indicator">
-            <div class="status-dot" id="statusDot"></div>
-            <span id="statusText">检查连接中...</span>
-        </div>
-    </header>
 
-    <main class="main-container">
-        <div class="console-grid">
-            <aside class="panel">
-                <div class="panel-header">
-                    <div class="panel-title">功能模块</div>
+            <div class="connection-bar">
+                <div>
+                    <label class="field-label" for="apiBase">API 基础地址</label>
+                    <input class="input" id="apiBase" type="url" spellcheck="false" autocomplete="off">
                 </div>
-                <div class="panel-body">
-                    <nav class="nav-tabs">
-                        <button class="nav-tab active" data-tab="health">
-                            <span class="icon">◎</span>
-                            <span>系统状态</span>
-                        </button>
-                        <button class="nav-tab" data-tab="knowledgebase">
-                            <span class="icon">⌘</span>
-                            <span>知识库管理</span>
-                        </button>
-                        <button class="nav-tab" data-tab="index">
-                            <span class="icon">↑</span>
-                            <span>文档索引</span>
-                        </button>
-                        <button class="nav-tab" data-tab="single">
-                            <span class="icon">+</span>
-                            <span>单条索引</span>
-                        </button>
-                        <button class="nav-tab" data-tab="retrieve">
-                            <span class="icon">◎</span>
-                            <span>文档检索</span>
-                        </button>
-                        <button class="nav-tab" data-tab="delete">
-                            <span class="icon">✕</span>
-                            <span>文件删除</span>
-                        </button>
-                    </nav>
+                <button class="button button-secondary" id="healthButton" type="button">
+                    <i data-lucide="activity" aria-hidden="true"></i>
+                    <span>检查连接</span>
+                </button>
+                <div class="status-pill" id="connectionStatus" role="status" aria-live="polite">
+                    <span class="status-dot"></span>
+                    <span id="connectionText">等待检查</span>
                 </div>
+            </div>
+        </header>
+
+        <div class="signal-strip">
+            <div class="manifest-stats">
+                <span class="manifest-stat"><strong id="endpointCount">0</strong>路由</span>
+                <span class="manifest-stat"><strong id="groupCount">0</strong>分组</span>
+                <span class="manifest-stat"><strong id="requestCount">0</strong>次请求</span>
+            </div>
+
+            <div class="trace" id="requestTrace" aria-label="请求执行轨迹">
+                <div class="trace-step" data-trace="build">
+                    <span class="trace-node"></span>
+                    <span>Build</span>
+                </div>
+                <span class="trace-line"></span>
+                <div class="trace-step" data-trace="send">
+                    <span class="trace-node"></span>
+                    <span>Send</span>
+                </div>
+                <span class="trace-line"></span>
+                <div class="trace-step" data-trace="receive">
+                    <span class="trace-node"></span>
+                    <span>Receive</span>
+                </div>
+                <span class="trace-line"></span>
+                <div class="trace-step" data-trace="parse">
+                    <span class="trace-node"></span>
+                    <span>Parse</span>
+                </div>
+            </div>
+
+            <div class="clock" id="clock">--:--:--</div>
+        </div>
+
+        <main class="bench-layout">
+            <aside class="route-rail">
+                <div class="rail-header">
+                    <div class="rail-title-row">
+                        <span class="rail-title">Route Directory</span>
+                        <span class="rail-count" id="routeCount">0</span>
+                    </div>
+                    <div class="search-wrap">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <input class="input" id="routeSearch" type="search" placeholder="筛选路径或名称" autocomplete="off">
+                    </div>
+                </div>
+                <nav class="route-nav" id="routeNav" aria-label="接口列表"></nav>
             </aside>
 
-            <section class="panel">
-                <div class="panel-header">
-                    <div class="panel-title" id="panelTitle">系统状态</div>
-                </div>
-                <div class="panel-body">
-                    <div id="healthTab" class="tab-content active">
-                        <div class="form-group">
-                            <label class="form-label">API 端点</label>
-                            <input type="text" class="form-input" id="apiBase" value="http://localhost:12125" placeholder="API 基础地址">
+            <section class="workspace">
+                <div class="workspace-frame">
+                    <header class="endpoint-header">
+                        <div class="endpoint-identity">
+                            <div class="endpoint-method" id="endpointMethod">GET</div>
+                            <div class="endpoint-title-wrap">
+                                <h1 class="endpoint-title" id="endpointTitle">健康检查</h1>
+                                <code class="endpoint-path" id="endpointPath">/health</code>
+                            </div>
                         </div>
-                        <div class="btn-group">
-                            <button class="btn btn-primary" onclick="checkHealth()">
-                                <span>◉</span> 检查连接
+                        <div class="endpoint-actions">
+                            <span class="group-chip" id="endpointGroup">系统</span>
+                            <button class="button button-primary" id="sendButton" type="button">
+                                <i data-lucide="play" aria-hidden="true"></i>
+                                <span>发送请求</span>
                             </button>
                         </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="healthResponse">
-                                <div class="empty-state">
-                                    <div class="icon">◎</div>
-                                    <p>点击"检查连接"按钮获取系统状态</p>
+                    </header>
+
+                    <p class="endpoint-description" id="endpointDescription"></p>
+
+                    <div class="request-response">
+                        <section class="pane request-pane">
+                            <div class="pane-header">
+                                <span class="pane-title">
+                                    <i data-lucide="braces" aria-hidden="true"></i>
+                                    Request
+                                </span>
+                                <span class="pane-meta" id="payloadType">NO BODY</span>
+                            </div>
+                            <form class="request-form" id="requestForm"></form>
+                        </section>
+
+                        <section class="pane response-pane">
+                            <div class="pane-header">
+                                <span class="pane-title">
+                                    <i data-lucide="terminal-square" aria-hidden="true"></i>
+                                    Response
+                                </span>
+                                <div class="response-actions">
+                                    <span class="metric" id="responseStatusMetric">STATUS <strong>--</strong></span>
+                                    <span class="metric" id="responseTimeMetric">TIME <strong>--</strong></span>
+                                    <span class="metric" id="responseSizeMetric">SIZE <strong>--</strong></span>
+                                    <button class="button button-icon hidden" id="copyButton" type="button" title="复制响应" aria-label="复制响应">
+                                        <i data-lucide="copy" aria-hidden="true"></i>
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div id="knowledgebaseTab" class="tab-content">
-                        <div class="form-group">
-                            <label class="form-label">索引名称</label>
-                            <input type="text" class="form-input" id="kbName" placeholder="例如: my_knowledge_base">
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-primary" onclick="createKnowledgeBase()">
-                                <span>+</span> 创建知识库
-                            </button>
-                        </div>
-                        <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
-                            <div class="form-group">
-                                <label class="form-label">删除知识库</label>
-                                <input type="text" class="form-input" id="deleteKbName" placeholder="输入要删除的索引名称">
-                            </div>
-                            <div class="btn-group">
-                                <button class="btn btn-danger" onclick="deleteKnowledgeBase()">
-                                    <span>✕</span> 删除知识库
-                                </button>
-                            </div>
-                        </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="kbResponse"></div>
-                        </div>
-                    </div>
-
-                    <div id="indexTab" class="tab-content">
-                        <div class="form-group">
-                            <label class="form-label">知识库名称</label>
-                            <input type="text" class="form-input" id="indexKbName" placeholder="知识库索引名称">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">MinIO 桶名称</label>
-                            <input type="text" class="form-input" id="bucketName" placeholder="MinIO bucket name">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">文件路径</label>
-                            <input type="text" class="form-input" id="filePath" placeholder="MinIO 中的文件路径">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">文件 ID (可选)</label>
-                            <input type="text" class="form-input" id="fileId" placeholder="留空则自动生成">
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-primary" onclick="indexDocuments()">
-                                <span>↑</span> 开始索引
-                            </button>
-                        </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="indexResponse">
-                                <div class="empty-state">
-                                    <div class="icon">↑</div>
-                                    <p>索引结果将显示在这里</p>
+                            <div class="response-view" id="responseView" aria-live="polite">
+                                <div class="response-empty">
+                                    <div>
+                                        <i data-lucide="radio-tower" aria-hidden="true"></i>
+                                        <p>选择接口并发送请求后，这里显示完整响应。</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div id="retrieveTab" class="tab-content">
-                        <div class="form-group">
-                            <label class="form-label">检索问题</label>
-                            <textarea class="form-input" id="queryQuestion" placeholder="输入您的问题..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">索引名称列表</label>
-                            <input type="text" class="form-input" id="indexNames" placeholder="用逗号分隔, 例如: kb1,kb2">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">返回数量 (top_k)</label>
-                            <input type="number" class="form-input" id="topK" value="3" min="1" max="20">
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-primary" onclick="retrieveDocuments()">
-                                <span>◎</span> 执行检索
-                            </button>
-                        </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="retrieveResponse">
-                                <div class="empty-state">
-                                    <div class="icon">◎</div>
-                                    <p>检索结果将显示在这里</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="singleTab" class="tab-content">
-                        <div class="form-group">
-                            <label class="form-label">索引名称</label>
-                            <input type="text" class="form-input" id="singleIndexName" placeholder="知识库索引名称">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">关键词</label>
-                            <input type="text" class="form-input" id="singleKeyword" placeholder="用于生成 hash_id 前缀">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">文本内容 (每行一个片段)</label>
-                            <textarea class="form-input" id="singleTexts" placeholder="输入要索引的文本片段，每行一个..." style="min-height: 150px;"></textarea>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-primary" onclick="indexSinglePassage()">
-                                <span>+</span> 批量索引
-                            </button>
-                        </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="singleResponse">
-                                <div class="empty-state">
-                                    <div class="icon">+</div>
-                                    <p>索引结果将显示在这里</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="deleteTab" class="tab-content">
-                        <div class="form-group">
-                            <label class="form-label">索引名称</label>
-                            <input type="text" class="form-input" id="deleteIndexName" placeholder="知识库索引名称">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">文件 ID 列表</label>
-                            <textarea class="form-input" id="deleteFileIds" placeholder="用逗号分隔文件ID" style="min-height: 80px;"></textarea>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-danger" onclick="deleteFiles()">
-                                <span>✕</span> 删除文件
-                            </button>
-                        </div>
-                        <div class="response-panel">
-                            <div class="response-box" id="deleteResponse">
-                                <div class="empty-state">
-                                    <div class="icon">✕</div>
-                                    <p>删除操作结果将显示在这里</p>
-                                </div>
-                            </div>
-                        </div>
+                        </section>
                     </div>
                 </div>
             </section>
-        </div>
-    </main>
+        </main>
+    </div>
 
-    <div class="toast-container" id="toastContainer"></div>
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script>
-        const API_BASE = 'http://localhost:12125';
+        const API_PREFIX = '/admin_api/python-knowledge-management';
+        const QUERY_API_BASE = new URLSearchParams(window.location.search).get('api');
+        const DEFAULT_BASE = QUERY_API_BASE || (
+            window.location.protocol.startsWith('http')
+                ? window.location.origin
+                : 'http://localhost:12125'
+        );
 
-        function getApiBase() {
-            return document.getElementById('apiBase').value || API_BASE;
+        const ENDPOINTS = [
+            {
+                id: 'health',
+                group: '系统',
+                label: '健康检查',
+                icon: 'activity',
+                method: 'GET',
+                path: '/health',
+                body: 'none',
+                description: '确认 FastAPI 生命周期、路由装配和基础响应结构是否可用。',
+                fields: []
+            },
+            {
+                id: 'create-kb',
+                group: '知识库',
+                label: '创建知识库',
+                icon: 'database',
+                method: 'POST',
+                path: '/create_knowledgebase',
+                body: 'json',
+                description: '创建 Elasticsearch 索引，作为后续文档和文本片段的检索命名空间。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' }
+                ]
+            },
+            {
+                id: 'delete-kb',
+                group: '知识库',
+                label: '删除知识库',
+                icon: 'database-zap',
+                method: 'POST',
+                path: '/delete_knowledgebase',
+                body: 'json',
+                description: '删除指定知识库索引及其全部搜索文档。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' }
+                ]
+            },
+            {
+                id: 'index-file',
+                group: '索引',
+                label: '上传 PDF 并索引',
+                icon: 'file-up',
+                method: 'POST',
+                path: '/index',
+                body: 'multipart',
+                description: '接收 PDF 二进制，并行持久化到对象存储并解析、抽取实体、生成向量，最后写入搜索数据库。',
+                fields: [
+                    { name: 'kb_name', label: '知识库名称', type: 'text', required: true, placeholder: 'demo' },
+                    { name: 'bucket_name', label: '存储桶名称', type: 'text', required: true, placeholder: 'documents' },
+                    { name: 'file_path', label: '文件路径', type: 'text', required: true, placeholder: 'reports/example.pdf' },
+                    { name: 'file', label: 'PDF 文件', type: 'file', required: true, accept: '.pdf,application/pdf' },
+                    { name: 'file_id', label: '文件 ID', type: 'text', required: false, placeholder: '留空自动生成' }
+                ]
+            },
+            {
+                id: 'index-single',
+                group: '索引',
+                label: '索引文本片段',
+                icon: 'text-cursor-input',
+                method: 'POST',
+                path: '/index_single',
+                body: 'json',
+                description: '直接写入文本片段并生成向量，不经过 PDF 解析和对象存储。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' },
+                    { name: 'keyword', label: '关键词前缀', type: 'text', required: true, placeholder: 'manual' },
+                    { name: 'texts', label: '文本片段', type: 'textarea', required: true, transform: 'lines', placeholder: '每行一个文本片段' }
+                ]
+            },
+            {
+                id: 'delete-single',
+                group: '索引',
+                label: '删除文本片段',
+                icon: 'eraser',
+                method: 'POST',
+                path: '/delete_single',
+                body: 'json',
+                description: '按搜索文档 ID 删除直接写入的文本片段。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' },
+                    { name: 'ids', label: '文档 ID', type: 'textarea', required: true, transform: 'list', placeholder: '支持逗号或换行分隔' }
+                ]
+            },
+            {
+                id: 'delete-files',
+                group: '索引',
+                label: '删除文件索引',
+                icon: 'files',
+                method: 'POST',
+                path: '/delete_files',
+                body: 'json',
+                description: '按文件 ID 删除关联的搜索文档和预计算关系元数据。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' },
+                    { name: 'file_ids', label: '文件 ID', type: 'textarea', required: true, transform: 'list', placeholder: '支持逗号或换行分隔' }
+                ]
+            },
+            {
+                id: 'retrieve',
+                group: '检索',
+                label: '知识库检索',
+                icon: 'scan-search',
+                method: 'POST',
+                path: '/retrieve',
+                body: 'json',
+                description: '按向量、BM25 或混合模式执行知识库检索，并融合实体和相邻段落扩展。',
+                fields: [
+                    { name: 'questions', label: '问题', type: 'textarea', required: true, placeholder: '输入检索问题' },
+                    { name: 'index_names', label: '索引名称', type: 'text', required: true, transform: 'list', placeholder: 'demo, demo-v2' },
+                    { name: 'top_k', label: '返回数量', type: 'number', required: true, default: 5, min: 1, max: 100 },
+                    {
+                        name: 'search_mode',
+                        label: '检索模式',
+                        type: 'select',
+                        required: true,
+                        default: 'vector',
+                        options: [
+                            { value: 'vector', label: 'vector' },
+                            { value: 'bm25', label: 'bm25' },
+                            { value: 'hybrid', label: 'hybrid' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'search-es',
+                group: '检索',
+                label: '搜索库字段查询',
+                icon: 'list-filter',
+                method: 'POST',
+                path: '/search_es',
+                body: 'json',
+                description: '在指定索引和字段上执行向量、BM25 或混合查询，用于验证 SearchStore 适配器。',
+                fields: [
+                    { name: 'index_name', label: '索引名称', type: 'text', required: true, placeholder: 'demo' },
+                    { name: 'field_name', label: '字段名称', type: 'text', required: true, default: 'text' },
+                    { name: 'search_key', label: '查询关键词', type: 'text', required: true, placeholder: '水库监测' },
+                    { name: 'top_k', label: '返回数量', type: 'number', required: true, default: 10, min: 1, max: 100 },
+                    {
+                        name: 'search_mode',
+                        label: '检索模式',
+                        type: 'select',
+                        required: true,
+                        default: 'bm25',
+                        options: [
+                            { value: 'vector', label: 'vector' },
+                            { value: 'bm25', label: 'bm25' },
+                            { value: 'hybrid', label: 'hybrid' }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        const state = {
+            currentId: ENDPOINTS[0].id,
+            requestCount: 0,
+            lastResponseText: '',
+            activeController: null
+        };
+
+        const apiBaseInput = document.getElementById('apiBase');
+        const routeNav = document.getElementById('routeNav');
+        const routeSearch = document.getElementById('routeSearch');
+        const requestForm = document.getElementById('requestForm');
+        const responseView = document.getElementById('responseView');
+        const sendButton = document.getElementById('sendButton');
+        const copyButton = document.getElementById('copyButton');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionText = document.getElementById('connectionText');
+
+        function currentEndpoint() {
+            return ENDPOINTS.find((endpoint) => endpoint.id === state.currentId);
+        }
+
+        function normalizeBase(value) {
+            return value.trim().replace(/\/+$/, '').replace(new RegExp(`${API_PREFIX}$`), '');
+        }
+
+        function buildUrl(path) {
+            return `${normalizeBase(apiBaseInput.value)}${API_PREFIX}${path}`;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function renderIcons() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        function renderRouteNav(filter = '') {
+            const normalizedFilter = filter.trim().toLowerCase();
+            const filtered = ENDPOINTS.filter((endpoint) => {
+                const haystack = `${endpoint.label} ${endpoint.path} ${endpoint.group}`.toLowerCase();
+                return !normalizedFilter || haystack.includes(normalizedFilter);
+            });
+            const groups = [...new Set(filtered.map((endpoint) => endpoint.group))];
+
+            routeNav.innerHTML = groups.map((group) => {
+                const items = filtered
+                    .filter((endpoint) => endpoint.group === group)
+                    .map((endpoint) => `
+                        <button class="route-item ${endpoint.id === state.currentId ? 'active' : ''}"
+                                type="button"
+                                data-endpoint="${endpoint.id}"
+                                aria-pressed="${endpoint.id === state.currentId}">
+                            <span class="method-badge method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
+                            <span class="route-copy">
+                                <span class="route-name">${escapeHtml(endpoint.label)}</span>
+                                <span class="route-path">${escapeHtml(endpoint.path)}</span>
+                            </span>
+                        </button>
+                    `)
+                    .join('');
+                return `
+                    <section class="route-group">
+                        <div class="route-group-label">${escapeHtml(group)}</div>
+                        ${items}
+                    </section>
+                `;
+            }).join('') || `
+                <div class="response-empty" style="min-height: 180px;">
+                    <div>
+                        <i data-lucide="search-x" aria-hidden="true"></i>
+                        <p>没有匹配的接口。</p>
+                    </div>
+                </div>
+            `;
+
+            routeNav.querySelectorAll('[data-endpoint]').forEach((button) => {
+                button.addEventListener('click', () => selectEndpoint(button.dataset.endpoint));
+            });
+            renderIcons();
+        }
+
+        function renderField(field) {
+            const required = field.required ? 'required' : '';
+            const requiredMark = field.required ? '<span class="required-mark">*</span>' : '';
+            const fieldClass = field.type === 'textarea' || field.type === 'file' ? 'field full' : 'field';
+            const typeLabel = field.type === 'textarea' ? 'ARRAY / TEXT' : field.type.toUpperCase();
+
+            if (field.type === 'file') {
+                return `
+                    <div class="${fieldClass}">
+                        <div class="field-head">
+                            <label class="field-label" for="field-${field.name}">
+                                ${escapeHtml(field.label)} ${requiredMark}
+                            </label>
+                            <span class="field-type">BINARY</span>
+                        </div>
+                        <label class="file-drop" for="field-${field.name}">
+                            <input id="field-${field.name}" name="${field.name}" type="file"
+                                   accept="${escapeHtml(field.accept || '')}" ${required}>
+                            <span class="file-icon">
+                                <i data-lucide="file-text" aria-hidden="true"></i>
+                            </span>
+                            <span class="file-copy">
+                                <span class="file-name" data-file-name="${field.name}">选择 PDF 文件</span>
+                                <span class="file-note">${escapeHtml(field.accept || '')}</span>
+                            </span>
+                        </label>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'textarea') {
+                return `
+                    <div class="${fieldClass}">
+                        <div class="field-head">
+                            <label class="field-label" for="field-${field.name}">
+                                ${escapeHtml(field.label)} ${requiredMark}
+                            </label>
+                            <span class="field-type">${typeLabel}</span>
+                        </div>
+                        <textarea class="textarea" id="field-${field.name}" name="${field.name}"
+                                  placeholder="${escapeHtml(field.placeholder || '')}" ${required}></textarea>
+                    </div>
+                `;
+            }
+
+            if (field.type === 'select') {
+                return `
+                    <div class="${fieldClass}">
+                        <div class="field-head">
+                            <label class="field-label" for="field-${field.name}">
+                                ${escapeHtml(field.label)} ${requiredMark}
+                            </label>
+                            <span class="field-type">SELECT</span>
+                        </div>
+                        <select class="select" id="field-${field.name}" name="${field.name}" ${required}>
+                            ${field.options.map((option) => `
+                                <option value="${escapeHtml(option.value)}"
+                                        ${option.value === field.default ? 'selected' : ''}>
+                                    ${escapeHtml(option.label)}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            const inputType = field.type === 'number' ? 'number' : 'text';
+            const min = field.min !== undefined ? `min="${field.min}"` : '';
+            const max = field.max !== undefined ? `max="${field.max}"` : '';
+            const defaultValue = field.default !== undefined ? `value="${field.default}"` : '';
+            return `
+                <div class="${fieldClass}">
+                    <div class="field-head">
+                        <label class="field-label" for="field-${field.name}">
+                            ${escapeHtml(field.label)} ${requiredMark}
+                        </label>
+                        <span class="field-type">${inputType.toUpperCase()}</span>
+                    </div>
+                    <input class="input" id="field-${field.name}" name="${field.name}"
+                           type="${inputType}" ${min} ${max} ${defaultValue}
+                           placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
+                </div>
+            `;
+        }
+
+        function renderRequest(endpoint) {
+            if (!endpoint.fields.length) {
+                requestForm.innerHTML = `
+                    <div class="response-empty" style="min-height: 300px;">
+                        <div>
+                            <i data-lucide="mouse-pointer-click" aria-hidden="true"></i>
+                            <p>该接口不需要请求参数，直接发送即可。</p>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <span class="request-note">GET ${escapeHtml(endpoint.path)}</span>
+                        <button class="button button-primary" id="inlineSendButton" type="button">
+                            <i data-lucide="play" aria-hidden="true"></i>
+                            <span>发送请求</span>
+                        </button>
+                    </div>
+                `;
+                document.getElementById('inlineSendButton').addEventListener('click', sendRequest);
+                renderIcons();
+                return;
+            }
+
+            requestForm.innerHTML = `
+                <div class="form-grid">
+                    ${endpoint.fields.map(renderField).join('')}
+                </div>
+                <div class="form-actions">
+                    <span class="request-note" id="requestNote">${endpoint.body === 'multipart' ? 'multipart/form-data' : 'application/json'}</span>
+                    <button class="button button-primary" id="inlineSendButton" type="button">
+                        <i data-lucide="play" aria-hidden="true"></i>
+                        <span>发送请求</span>
+                    </button>
+                </div>
+            `;
+
+            requestForm.querySelectorAll('input[type="file"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    const drop = input.closest('.file-drop');
+                    const label = drop.querySelector('[data-file-name]');
+                    const file = input.files[0];
+                    label.textContent = file ? file.name : '选择 PDF 文件';
+                    drop.classList.toggle('has-file', Boolean(file));
+                });
+            });
+            document.getElementById('inlineSendButton').addEventListener('click', sendRequest);
+            renderIcons();
+        }
+
+        function resetTrace() {
+            document.querySelectorAll('.trace-step').forEach((step) => {
+                step.classList.remove('active', 'done', 'error');
+            });
+        }
+
+        function setTrace(name, status) {
+            const step = document.querySelector(`[data-trace="${name}"]`);
+            if (!step) return;
+            step.classList.remove('active', 'done', 'error');
+            step.classList.add(status);
+        }
+
+        function setConnectionStatus(status, text) {
+            connectionStatus.classList.remove('online', 'offline');
+            if (status) connectionStatus.classList.add(status);
+            connectionText.textContent = text;
+        }
+
+        function setMetric(id, value) {
+            document.getElementById(id).innerHTML = value;
+        }
+
+        function resetResponse() {
+            state.lastResponseText = '';
+            copyButton.classList.add('hidden');
+            setMetric('responseStatusMetric', 'STATUS <strong>--</strong>');
+            setMetric('responseTimeMetric', 'TIME <strong>--</strong>');
+            setMetric('responseSizeMetric', 'SIZE <strong>--</strong>');
+            responseView.innerHTML = `
+                <div class="response-empty">
+                    <div>
+                        <i data-lucide="radio-tower" aria-hidden="true"></i>
+                        <p>选择接口并发送请求后，这里显示完整响应。</p>
+                    </div>
+                </div>
+            `;
+            renderIcons();
+        }
+
+        function showLoadingResponse() {
+            responseView.innerHTML = `
+                <div class="response-loading">
+                    <div>
+                        <div class="scan"></div>
+                        <span>等待服务响应</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectEndpoint(id) {
+            const endpoint = ENDPOINTS.find((item) => item.id === id);
+            if (!endpoint) return;
+            state.currentId = id;
+            document.getElementById('endpointMethod').textContent = endpoint.method;
+            document.getElementById('endpointTitle').textContent = endpoint.label;
+            document.getElementById('endpointPath').textContent = `${API_PREFIX}${endpoint.path}`;
+            document.getElementById('endpointGroup').textContent = endpoint.group;
+            document.getElementById('endpointDescription').textContent = endpoint.description;
+            document.getElementById('payloadType').textContent = endpoint.body === 'none'
+                ? 'NO BODY'
+                : endpoint.body === 'multipart'
+                    ? 'MULTIPART'
+                    : 'JSON';
+            resetTrace();
+            resetResponse();
+            renderRequest(endpoint);
+            renderRouteNav(routeSearch.value);
+        }
+
+        function valueForField(field) {
+            const input = document.getElementById(`field-${field.name}`);
+            if (!input) return undefined;
+            if (field.type === 'file') {
+                return input.files[0] || undefined;
+            }
+            const rawValue = input.value.trim();
+            if (!rawValue && !field.required) return undefined;
+            if (field.transform === 'lines') {
+                return rawValue.split('\n').map((item) => item.trim()).filter(Boolean);
+            }
+            if (field.transform === 'list') {
+                return rawValue.split(/[\n,，]+/).map((item) => item.trim()).filter(Boolean);
+            }
+            if (field.type === 'number') {
+                return Number(rawValue);
+            }
+            return rawValue;
+        }
+
+        function buildRequestBody(endpoint) {
+            if (endpoint.body === 'none') {
+                return { body: undefined, headers: {} };
+            }
+
+            if (endpoint.body === 'multipart') {
+                const formData = new FormData();
+                endpoint.fields.forEach((field) => {
+                    const value = valueForField(field);
+                    if (value !== undefined) {
+                        formData.append(field.name, value);
+                    }
+                });
+                return { body: formData, headers: {} };
+            }
+
+            const payload = {};
+            endpoint.fields.forEach((field) => {
+                const value = valueForField(field);
+                if (value !== undefined) {
+                    payload[field.name] = value;
+                }
+            });
+            return {
+                body: JSON.stringify(payload),
+                headers: { 'Content-Type': 'application/json' }
+            };
+        }
+
+        function validateRequestForm() {
+            if (!requestForm.querySelector('input, textarea, select')) {
+                return true;
+            }
+            if (requestForm.reportValidity()) {
+                return true;
+            }
+            showToast('请补全必填参数', 'error');
+            return false;
+        }
+
+        async function sendRequest() {
+            const endpoint = currentEndpoint();
+            if (!validateRequestForm()) return;
+            if (state.activeController) {
+                state.activeController.abort();
+            }
+
+            resetTrace();
+            setTrace('build', 'active');
+            showLoadingResponse();
+            sendButton.disabled = true;
+
+            let request;
+            try {
+                request = buildRequestBody(endpoint);
+                setTrace('build', 'done');
+                setTrace('send', 'active');
+            } catch (error) {
+                setTrace('build', 'error');
+                renderError(`请求构造失败\n${error.message}`);
+                sendButton.disabled = false;
+                return;
+            }
+
+            const startedAt = performance.now();
+            state.activeController = new AbortController();
+            state.requestCount += 1;
+            document.getElementById('requestCount').textContent = state.requestCount;
+
+            try {
+                const response = await fetch(buildUrl(endpoint.path), {
+                    method: endpoint.method,
+                    headers: request.headers,
+                    body: request.body,
+                    signal: state.activeController.signal
+                });
+                setTrace('send', 'done');
+                setTrace('receive', 'active');
+                const responseText = await response.text();
+                const duration = performance.now() - startedAt;
+                setTrace('receive', 'done');
+                setTrace('parse', 'active');
+                renderResponse(response, responseText, duration);
+                setTrace('parse', 'done');
+                updateConnectionFromResponse(response);
+                showToast(response.ok ? '请求完成' : `请求失败：HTTP ${response.status}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    showToast('已取消上一请求', 'info');
+                } else {
+                    setTrace('send', 'error');
+                    renderError(`请求失败\n${error.message}`);
+                    setConnectionStatus('offline', '连接失败');
+                    showToast('无法连接到 API', 'error');
+                }
+            } finally {
+                sendButton.disabled = false;
+                state.activeController = null;
+            }
+        }
+
+        function renderResponse(response, responseText, duration) {
+            state.lastResponseText = responseText;
+            const size = new Blob([responseText]).size;
+            let parsed;
+            try {
+                parsed = JSON.parse(responseText);
+            } catch {
+                parsed = null;
+            }
+
+            setMetric('responseStatusMetric', `STATUS <strong>${response.status}</strong>`);
+            setMetric('responseTimeMetric', `TIME <strong>${Math.round(duration)}ms</strong>`);
+            setMetric('responseSizeMetric', `SIZE <strong>${formatBytes(size)}</strong>`);
+            copyButton.classList.remove('hidden');
+            responseView.innerHTML = `<pre class="response-code">${escapeHtml(parsed ? JSON.stringify(parsed, null, 2) : responseText)}</pre>`;
+            renderIcons();
+        }
+
+        function renderError(message) {
+            setMetric('responseStatusMetric', 'STATUS <strong>ERR</strong>');
+            setMetric('responseTimeMetric', 'TIME <strong>--</strong>');
+            setMetric('responseSizeMetric', 'SIZE <strong>--</strong>');
+            copyButton.classList.add('hidden');
+            responseView.innerHTML = `<div class="response-error">${escapeHtml(message)}</div>`;
+        }
+
+        function updateConnectionFromResponse(response) {
+            if (response.status < 500) {
+                setConnectionStatus('online', `HTTP ${response.status}`);
+            } else {
+                setConnectionStatus('offline', `HTTP ${response.status}`);
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return `${bytes}B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+            return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+        }
+
+        async function checkHealth(options = {}) {
+            const button = document.getElementById('healthButton');
+            button.disabled = true;
+            try {
+                const response = await fetch(buildUrl('/health'));
+                await response.text();
+                setConnectionStatus(response.ok ? 'online' : 'offline', response.ok ? '服务在线' : `HTTP ${response.status}`);
+                if (!options.silent) {
+                    showToast(response.ok ? '服务在线' : `健康检查失败：HTTP ${response.status}`, response.ok ? 'success' : 'error');
+                }
+            } catch {
+                setConnectionStatus('offline', '连接失败');
+                if (!options.silent) {
+                    showToast('无法连接到 API', 'error');
+                }
+            } finally {
+                button.disabled = false;
+            }
         }
 
         function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
+            const icons = {
+                success: 'check-circle-2',
+                error: 'circle-alert',
+                info: 'info'
+            };
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            const icons = { success: '✓', error: '✕', info: '◎' };
             toast.innerHTML = `
-                <span class="toast-icon">${icons[type]}</span>
-                <span class="toast-message">${message}</span>
+                <i data-lucide="${icons[type]}" aria-hidden="true"></i>
+                <span class="toast-message">${escapeHtml(message)}</span>
             `;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
+            document.getElementById('toastStack').appendChild(toast);
+            renderIcons();
+            window.setTimeout(() => toast.remove(), 3600);
         }
 
-        function setResponse(boxId, content, status = null) {
-            const box = document.getElementById(boxId);
-            let statusHtml = '';
-            if (status) {
-                const statusClass = status === 200 || status === 'success' ? '' : 'error';
-                statusHtml = `<div class="response-meta">
-                    <span class="response-status ${statusClass}">${status}</span>
-                    <span class="response-time">${new Date().toLocaleTimeString()}</span>
-                </div>`;
-            }
-            box.innerHTML = statusHtml + `<pre>${content}</pre>`;
-        }
-
-        function showLoading(boxId) {
-            document.getElementById(boxId).innerHTML = '<div class="loading"><div class="spinner"></div><span>处理中...</span></div>';
-        }
-
-        async function checkHealth() {
-            const base = getApiBase();
+        async function copyResponse() {
+            if (!state.lastResponseText) return;
             try {
-                const response = await fetch(`${base}/health`);
-                const data = await response.json();
-                document.getElementById('statusDot').classList.add('connected');
-                document.getElementById('statusText').textContent = '已连接';
-                setResponse('healthResponse', JSON.stringify(data, null, 2), response.status);
-                showToast('系统运行正常', 'success');
-            } catch (error) {
-                document.getElementById('statusDot').classList.remove('connected');
-                document.getElementById('statusText').textContent = '未连接';
-                setResponse('healthResponse', `连接错误: ${error.message}`, 'error');
-                showToast('无法连接到服务器', 'error');
+                await navigator.clipboard.writeText(state.lastResponseText);
+                showToast('响应已复制', 'success');
+            } catch {
+                showToast('浏览器拒绝访问剪贴板', 'error');
             }
         }
 
-        async function createKnowledgeBase() {
-            const base = getApiBase();
-            const indexName = document.getElementById('kbName').value.trim();
-            if (!indexName) {
-                showToast('请输入索引名称', 'error');
-                return;
-            }
-            showLoading('kbResponse');
-            try {
-                const response = await fetch(`${base}/create_knowledgebase`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ index_name: indexName })
+        function startClock() {
+            const update = () => {
+                document.getElementById('clock').textContent = new Date().toLocaleTimeString('zh-CN', {
+                    hour12: false
                 });
-                const data = await response.json();
-                setResponse('kbResponse', JSON.stringify(data, null, 2), response.status);
-                showToast(`知识库 "${indexName}" 创建成功`, 'success');
-                document.getElementById('kbName').value = '';
-            } catch (error) {
-                setResponse('kbResponse', `错误: ${error.message}`, 'error');
-                showToast('创建知识库失败', 'error');
-            }
-        }
-
-        async function deleteKnowledgeBase() {
-            const base = getApiBase();
-            const indexName = document.getElementById('deleteKbName').value.trim();
-            if (!indexName) {
-                showToast('请输入要删除的索引名称', 'error');
-                return;
-            }
-            if (!confirm(`确定要删除知识库 "${indexName}" 吗? 此操作不可恢复!`)) return;
-            showLoading('kbResponse');
-            try {
-                const response = await fetch(`${base}/delete_knowledgebase`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ index_name: indexName })
-                });
-                const data = await response.json();
-                setResponse('kbResponse', JSON.stringify(data, null, 2), response.status);
-                if (response.ok) {
-                    showToast(`知识库 "${indexName}" 已删除`, 'success');
-                    document.getElementById('deleteKbName').value = '';
-                } else {
-                    showToast('删除知识库失败', 'error');
-                }
-            } catch (error) {
-                setResponse('kbResponse', `错误: ${error.message}`, 'error');
-                showToast('删除知识库失败', 'error');
-            }
-        }
-
-        async function indexDocuments() {
-            const base = getApiBase();
-            const payload = {
-                kb_name: document.getElementById('indexKbName').value.trim(),
-                bucket_name: document.getElementById('bucketName').value.trim(),
-                file_path: document.getElementById('filePath').value.trim(),
-                file_id: document.getElementById('fileId').value.trim() || null
             };
-            if (!payload.kb_name || !payload.bucket_name || !payload.file_path) {
-                showToast('请填写所有必填字段', 'error');
-                return;
-            }
-            showLoading('indexResponse');
-            try {
-                const response = await fetch(`${base}/index`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                setResponse('indexResponse', JSON.stringify(data, null, 2), response.status);
-                if (response.ok) {
-                    showToast(`成功索引 ${data.chunk_count} 个文档块`, 'success');
-                } else {
-                    showToast('索引失败', 'error');
-                }
-            } catch (error) {
-                setResponse('indexResponse', `错误: ${error.message}`, 'error');
-                showToast('索引请求失败', 'error');
-            }
+            update();
+            window.setInterval(update, 1000);
         }
 
-        async function indexSinglePassage() {
-            const base = getApiBase();
-            const indexName = document.getElementById('singleIndexName').value.trim();
-            const keyword = document.getElementById('singleKeyword').value.trim();
-            const textsRaw = document.getElementById('singleTexts').value.trim();
+        function initialize() {
+            apiBaseInput.value = DEFAULT_BASE;
+            document.getElementById('endpointCount').textContent = ENDPOINTS.length;
+            document.getElementById('groupCount').textContent = new Set(ENDPOINTS.map((endpoint) => endpoint.group)).size;
+            document.getElementById('routeCount').textContent = `${ENDPOINTS.length} routes`;
+            renderRouteNav();
+            selectEndpoint(ENDPOINTS[0].id);
+            startClock();
+            renderIcons();
+            checkHealth({ silent: true });
 
-            if (!indexName || !keyword || !textsRaw) {
-                showToast('请填写所有必填字段', 'error');
-                return;
-            }
-
-            const texts = textsRaw.split('\n').map(t => t.trim()).filter(t => t.length > 0);
-            if (texts.length === 0) {
-                showToast('请输入至少一个文本片段', 'error');
-                return;
-            }
-
-            const payload = {
-                index_name: indexName,
-                keyword: keyword,
-                texts: texts
-            };
-
-            showLoading('singleResponse');
-            try {
-                const response = await fetch(`${base}/index_single`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                setResponse('singleResponse', JSON.stringify(data, null, 2), response.status);
-                if (response.ok) {
-                    showToast(`成功索引 ${texts.length} 个文本片段`, 'success');
-                } else {
-                    showToast('索引失败', 'error');
-                }
-            } catch (error) {
-                setResponse('singleResponse', `错误: ${error.message}`, 'error');
-                showToast('索引请求失败', 'error');
-            }
-        }
-
-        async function retrieveDocuments() {
-            const base = getApiBase();
-            const questions = document.getElementById('queryQuestion').value.trim();
-            const indexNames = document.getElementById('indexNames').value.trim();
-            const topK = parseInt(document.getElementById('topK').value) || 3;
-            if (!questions || !indexNames) {
-                showToast('请填写问题和建议名称', 'error');
-                return;
-            }
-            showLoading('retrieveResponse');
-            try {
-                const response = await fetch(`${base}/retrieve`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        questions,
-                        index_names: indexNames.split(',').map(s => s.trim()),
-                        top_k: topK
-                    })
-                });
-                const data = await response.json();
-                if (response.ok && data.data) {
-                    displayRetrievalResults(data.data);
-                } else {
-                    setResponse('retrieveResponse', JSON.stringify(data, null, 2), response.status);
-                    showToast('检索完成', 'info');
-                }
-            } catch (error) {
-                setResponse('retrieveResponse', `错误: ${error.message}`, 'error');
-                showToast('检索请求失败', 'error');
-            }
-        }
-
-        function displayRetrievalResults(results) {
-            const box = document.getElementById('retrieveResponse');
-            if (!results || results.length === 0) {
-                box.innerHTML = '<div class="empty-state"><div class="icon">◎</div><p>未找到相关结果</p></div>';
-                return;
-            }
-            let html = `<div class="response-meta">
-                <span class="response-status">${results.length} 条结果</span>
-                <span class="response-time">${new Date().toLocaleTimeString()}</span>
-            </div>`;
-            html += '<div class="retrieval-results">';
-            results.forEach((result, i) => {
-                const score = result.score ? (result.score * 100).toFixed(1) + '%' : 'N/A';
-                const meta = result.metadata || {};
-                html += `<div class="result-card">
-                    <div class="result-header">
-                        <span class="result-score">相似度: ${score}</span>
-                        <span class="result-meta">#${i + 1}</span>
-                    </div>
-                    <div class="result-text">${escapeHtml(result.text || '')}</div>
-                    <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">
-                        ${meta.file_name ? `文件: ${meta.file_name}` : ''}
-                        ${meta.segment_id ? ` | 段落ID: ${meta.segment_id}` : ''}
-                    </div>
-                </div>`;
+            sendButton.addEventListener('click', sendRequest);
+            document.getElementById('healthButton').addEventListener('click', () => checkHealth());
+            copyButton.addEventListener('click', copyResponse);
+            routeSearch.addEventListener('input', () => renderRouteNav(routeSearch.value));
+            apiBaseInput.addEventListener('change', () => checkHealth({ silent: true }));
+            requestForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                sendRequest();
             });
-            html += '</div>';
-            box.innerHTML = html;
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        async function deleteFiles() {
-            const base = getApiBase();
-            const indexName = document.getElementById('deleteIndexName').value.trim();
-            const fileIds = document.getElementById('deleteFileIds').value.trim();
-            if (!indexName || !fileIds) {
-                showToast('请填写所有字段', 'error');
-                return;
-            }
-            showLoading('deleteResponse');
-            try {
-                const response = await fetch(`${base}/delete_files`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        index_name: indexName,
-                        file_ids: fileIds.split(',').map(s => s.trim())
-                    })
-                });
-                const data = await response.json();
-                setResponse('deleteResponse', JSON.stringify(data, null, 2), response.status);
-                showToast('文件删除请求已发送', 'success');
-            } catch (error) {
-                setResponse('deleteResponse', `错误: ${error.message}`, 'error');
-                showToast('删除请求失败', 'error');
-            }
-        }
-
-        document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                const tabId = tab.dataset.tab + 'Tab';
-                document.getElementById(tabId).classList.add('active');
-
-                const titles = {
-                    health: '系统状态',
-                    knowledgebase: '知识库管理',
-                    index: '文档索引',
-                    single: '单条索引',
-                    retrieve: '文档检索',
-                    delete: '文件删除'
-                };
-                document.getElementById('panelTitle').textContent = titles[tab.dataset.tab];
-            });
-        });
-
-        window.addEventListener('load', () => {
-            checkHealth();
-        });
+        window.addEventListener('DOMContentLoaded', initialize);
     </script>
 </body>
 </html>
