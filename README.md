@@ -27,6 +27,12 @@ docker-compose up -d --build --force-recreate
 配置统一由 `.env` 和 `pydantic-settings` 读取，配置入口为
 `src/common/settings.py`。
 
+首次运行前复制样例文件：
+
+```bash
+cp .env.example .env
+```
+
 ```text
 src/
   common/                 通用配置和工具
