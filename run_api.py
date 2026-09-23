@@ -3,12 +3,13 @@
 import os
 import warnings
 
-from src.model_providers import create_embedding_provider
-from src.common.settings import get_settings
-from src.common.utils import get_es_client, setup_logging
-from src.adapters.graph import Neo4jDriver, Neo4jGraphStore
-from src.adapters.search import ElasticsearchSearchStore
-from src.services.linear_rag import LinearRAG
+from src.common.model_providers import create_embedding_provider
+from src.settings import get_settings
+from src.utils import get_es_client, setup_logging
+from src.common.document_processing.ner import SpacyNER
+from src.common.graph_store import Neo4jGraphStore
+from src.common.search_store import ElasticsearchSearchStore
+from src.indexing.service import IndexingService
 
 warnings.filterwarnings("ignore")
 
@@ -51,13 +52,7 @@ def main():
     es_client = get_es_client()
     search_store = ElasticsearchSearchStore(es_client)
 
-    neo4j_driver = Neo4jDriver(
-        uri=settings.neo4j_uri,
-        user=settings.neo4j_user,
-        password=settings.neo4j_password,
-        database=settings.neo4j_database,
-    )
-    graph_store = Neo4jGraphStore(neo4j_driver)
+    graph_store = Neo4jGraphStore.from_settings()
 
     print("开始创建索引...")
     config = settings.runtime_config(embedding_model)
@@ -79,19 +74,22 @@ def main():
         "bucket_name": ["111", "111"],
     }
 
-    rag_model = LinearRAG(
-        global_config=config,
+    indexing_service = IndexingService(
+        config=config,
         search_store=search_store,
         graph_store=graph_store,
         embedding_provider=embedding_model,
+        entity_extractor=SpacyNER(settings.spacy_model),
     )
-    rag_model.index(passages, kb_name="hh_test")
+    indexing_service.index(passages, kb_name="hh_test")
 
     # print("开始进行检索...")
     # questions = [
     #     {"question": "密云水库开展的工情监测项目有什么?", "answer": "..."}
     # ]
-    # results = rag_model.retrieve(questions, index_names=["lin_test"], top_k=3)
+    # results = retrieval_service.retrieve(
+    #     questions, index_names=["lin_test"], top_k=3
+    # )
 
     # print("检索结果:")
     # for idx, res in enumerate(results):
@@ -99,7 +97,7 @@ def main():
     # print(results)
 
     # 删除功能
-    # rag_model.delete_file(index_name="lin_test11", file_id="456")
+    # indexing_service.delete_files(index_name="lin_test11", file_ids=["456"])
 
 
 if __name__ == "__main__":
