@@ -37,6 +37,10 @@ cp .env.example .env
 src/
   settings.py             pydantic-settings 配置入口
   utils.py                全项目通用工具
+  api/                    FastAPI 应用装配、依赖注入和根路由
+  indexing/               文档索引功能模块
+  retrieval/              知识检索功能模块
+  knowledge_bases/        知识库管理功能模块
   common/                 通用能力包
     models.py             业务数据模型
     search_store/         搜索接口和 Elasticsearch 实现
@@ -46,7 +50,6 @@ src/
     object_storage/       对象存储接口和 MinIO 实现
     model_providers/      大模型和 Embedding 统一入口
     document_processing/  PDF、切片和实体识别
-  services/               索引、检索、知识库等业务用例
 ```
 
 切换向量数据库时实现 `src/common/search_store/base.py` 的 `SearchStore`；

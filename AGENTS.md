@@ -4,6 +4,7 @@
 
 - `src/settings.py`：全项目配置入口。
 - `src/utils.py`：全项目通用工具。
+- `src/api/`：FastAPI 应用装配、依赖注入、共享响应模型和根路由。
 - `src/common/`：通用能力包和共享模型。
 - `src/common/models.py`：业务数据模型。
 - `src/common/search_store/`：搜索接口和具体搜索实现。
@@ -11,9 +12,14 @@
 - `src/common/object_storage/`：对象存储接口和具体实现。
 - `src/common/model_providers/`：大模型和 Embedding 统一入口及实现。
 - `src/common/document_processing/`：PDF 解析、文本切片和实体识别。
-- `src/services/`：索引、检索、知识库等业务用例。
+- `src/indexing/`：文档索引功能模块。
+- `src/retrieval/`：知识检索功能模块。
+- `src/knowledge_bases/`：知识库管理功能模块。
 
-旧目录 `core / domain / ports / application / infra / nlp / adapters / interfaces` 已废弃，不要重新引入。
+功能模块内部按 `router.py / schemas.py / service.py` 组织。
+根路径、健康检查这类应用级路由直接放在 `src/api/app.py`，不要单独建模块。
+
+旧目录 `core / domain / ports / application / infra / nlp / adapters / interfaces / services` 已废弃，不要重新引入。
 
 ## 可替换能力
 
@@ -26,6 +32,8 @@
 - 大模型和 Embedding 不得依赖 LangChain，使用官方 `openai` SDK 或其它独立 SDK。
 - `langchain-text-splitters` 目前只允许用于文本切片，不得用于模型调用。
 - 业务服务不得直接导入具体实现；只有启动层负责组装具体实现。
+- 功能模块的 `service.py` 不应包含 FastAPI 路由代码。
+- `router.py` 只负责 HTTP 参数、依赖注入和响应转换。
 
 ## 配置
 
