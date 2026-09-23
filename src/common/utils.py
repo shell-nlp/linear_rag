@@ -6,16 +6,7 @@ from elasticsearch import Elasticsearch
 from redis import Redis
 from redis.sentinel import Sentinel
 
-from src.core.config import (
-    REDIS_DB,
-    REDIS_PASSWORD,
-    REDIS_SENTINEL_MASTER,
-    REDIS_SENTINEL_NODES,
-    REDIS_URL,
-    es_password,
-    es_url,
-    es_user,
-)
+from src.common.settings import get_settings
 
 
 def compute_mdhash_id(content: str, prefix: str = "") -> str:
@@ -40,19 +31,21 @@ def get_es_client():
     """
     获取 Elasticsearch 客户端
     """
+    settings = get_settings()
     basic_auth = None
-    if es_user and es_password:
-        basic_auth = (es_user, es_password)
-    return Elasticsearch(es_url, basic_auth=basic_auth)
+    if settings.es_user and settings.es_password:
+        basic_auth = (settings.es_user, settings.es_password)
+    return Elasticsearch(settings.es_url, basic_auth=basic_auth)
 
 
 def get_redis_client():
     """
     获取 Redis 客户端
     """
-    if REDIS_SENTINEL_MASTER and REDIS_SENTINEL_NODES:
+    settings = get_settings()
+    if settings.redis_sentinel_master and settings.redis_sentinel_nodes:
         sentinel_nodes = []
-        for raw_node in REDIS_SENTINEL_NODES.split(","):
+        for raw_node in settings.redis_sentinel_nodes.split(","):
             node = raw_node.strip()
             if not node:
                 continue
@@ -61,14 +54,14 @@ def get_redis_client():
 
         sentinel = Sentinel(
             sentinel_nodes,
-            password=REDIS_PASSWORD or None,
+            password=settings.redis_password or None,
             decode_responses=True,
         )
         return sentinel.master_for(
-            REDIS_SENTINEL_MASTER,
-            password=REDIS_PASSWORD or None,
-            db=REDIS_DB,
+            settings.redis_sentinel_master,
+            password=settings.redis_password or None,
+            db=settings.redis_db,
             decode_responses=True,
         )
 
-    return Redis.from_url(REDIS_URL, decode_responses=True)
+    return Redis.from_url(settings.redis_url, decode_responses=True)

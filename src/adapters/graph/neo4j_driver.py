@@ -1,12 +1,11 @@
 from typing import Any, Dict, List, Optional
-from src.infra.neo4j.base import GraphBase
 import uuid
 from neo4j import GraphDatabase
 from loguru import logger
 
 
-class Neo4jGraph(GraphBase):
-    """Neo4j图数据库的实现类"""
+class Neo4jDriver:
+    """Neo4j 驱动封装，只负责连接和低层查询。"""
 
     def __init__(self, uri: str, user: str, password: str, database: str = "neo4j"):
         """
@@ -389,7 +388,7 @@ class Neo4jGraph(GraphBase):
 
 
 if __name__ == "__main__":
-    graph = Neo4jGraph(
+    graph = Neo4jDriver(
         uri="bolt://localhost:7687",
         user="neo4j",
         password="neo4j@2025",

@@ -1,114 +1,37 @@
-import asyncio
-import json
 import os
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
-import nacos
 import uvicorn
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.core.config import (
-    EMBEDDING_API_URL,
-    EMBEDDING_MODEL_NAME,
-    LLM_API_KEY,
-    LLM_BASE_URL,
-    LOCAL_IP,
-    MAX_WORKERS,
-    NACOS_NAMESPACE,
-    NACOS_SERVER_ADDRESSES,
-    NEO4J_DATABASE,
-    NEO4J_PASSWORD,
-    NEO4J_URI,
-    NEO4J_USER,
-    REDIS_SENTINEL_MASTER,
-    REDIS_SENTINEL_NODES,
-    REDIS_URL,
-    SERVICE_NAME,
-    SPACY_MODEL,
-    LinearRAGConfig,
-    embdding_dim,
+from src.model_providers import (
+    EmbeddingProvider,
+    LLMProvider,
+    create_model_providers,
 )
-from src.core.utils import compute_mdhash_id, get_es_client, get_redis_client, setup_logging
-from src.infra.elasticsearch import Customize_Elastic
-from src.infra.neo4j.db import Neo4jGraph
-from src.infra.neo4j.queue import RedisNeo4jWriteQueue
-from src.nlp.embedding import LocalOpenAIEmbeddingModel
-from src.nlp.text_splitter import PDFParser
+from src.common.settings import get_settings
+from src.services.knowledge_base_service import KnowledgeBaseService
+from src.services.mappers import documents_to_passages
+from src.common.utils import get_es_client, get_redis_client, setup_logging
+from src.models import SearchMode
+from src.adapters.graph import Neo4jDriver, Neo4jGraphStore
+from src.adapters.graph.neo4j_write_queue import RedisNeo4jWriteQueue
+from src.adapters.search import ElasticsearchSearchStore
+from src.document_processing.pdf_parser import PDFParser
 from src.services.linear_rag import LinearRAG
 
-scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
-client = nacos.NacosClient(NACOS_SERVER_ADDRESSES, namespace=NACOS_NAMESPACE)
-local_ip = LOCAL_IP
-_nacos_heartbeat_failed = False
+settings = get_settings()
 
-
-@scheduler.scheduled_job("interval", seconds=6)
-async def beat():
-    global _nacos_heartbeat_failed
-    try:
-        await asyncio.to_thread(
-            client.add_naming_instance,
-            SERVICE_NAME,
-            local_ip,
-            service_port,
-            group_name="DEFAULT_GROUP",
-        )
-        if _nacos_heartbeat_failed:
-            logger.info(
-                "Nacos heartbeat recovered for {} at {}:{}",
-                SERVICE_NAME,
-                local_ip,
-                service_port,
-            )
-            _nacos_heartbeat_failed = False
-    except Exception as exc:
-        if not _nacos_heartbeat_failed:
-            logger.warning(
-                "Nacos heartbeat failed for {} at {}:{}: {}",
-                SERVICE_NAME,
-                local_ip,
-                service_port,
-                exc,
-            )
-        _nacos_heartbeat_failed = True
-
-
-default_settings = """{"settings": {"index.analysis.analyzer.default.type": "ik_smart", "index.number_of_replicas": "1", "index.number_of_shards": "1", "index.routing.allocation.include._tier_preference": "data_content"}, 
-"mappings": {"properties": 
-{
-"content_image": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"content_pages_number": {"type": "long"}, "file_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"file_name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"metadata": {"properties": {"content_image": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"content_pages_number": {"type": "long"}, 
-"file_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"file_name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"parent_text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"segment_id": {"type": "long"}, 
-"shared_tenant_id_list": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"state": {"type": "boolean"}, "tenant_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}}}, 
-"parent_text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"segment_id": {"type": "long"}, 
-"shared_tenant_id_list": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"state": {"type": "boolean"}, "tenant_id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"text": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}}, 
-"vector": {"type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine"}}}}"""
-
-default_settings = json.loads(default_settings)
-default_settings["mappings"]["properties"]["vector"]["dims"] = embdding_dim
 
 warnings.filterwarnings("ignore")
 
 
-es_client = get_es_client()
 INDEX_PROCESS_WORKERS = int(os.getenv("INDEX_PROCESS_WORKERS", 10))
 logger.info(f"索引处理进程数设置为 {INDEX_PROCESS_WORKERS}")
 
@@ -162,6 +85,10 @@ class RetrievePayload(BaseModel):
     questions: str
     index_names: List[str]
     top_k: int = 3
+    search_mode: SearchMode = Field(
+        default=SearchMode.VECTOR,
+        description="检索模式：vector、bm25 或 hybrid",
+    )
 
 
 class DeletePayload(BaseModel):
@@ -174,6 +101,10 @@ class ESSearchPayload(BaseModel):
     field_name: str = Field(description="要查询的 ES 字段名")
     search_key: str = Field(description="查询关键词")
     use_vector: bool = Field(default=False, description="是否使用向量查询")
+    search_mode: SearchMode | None = Field(
+        default=None,
+        description="显式指定检索模式，未填写时根据 use_vector 兼容旧请求",
+    )
     top_k: int = Field(default=10, ge=1, description="返回结果数量")
 
 
@@ -184,100 +115,24 @@ class Response(BaseModel):
 
 
 class AppState:
-    rag_model: LinearRAG = None
-    index_process_pool: ProcessPoolExecutor = None
-    neo4j_write_queue: RedisNeo4jWriteQueue = None
+    rag_model: LinearRAG | None = None
+    kb_service: KnowledgeBaseService | None = None
+    embedding_provider: EmbeddingProvider | None = None
+    llm_provider: LLMProvider | None = None
+    index_process_pool: ProcessPoolExecutor | None = None
+    neo4j_write_queue: RedisNeo4jWriteQueue | None = None
 
 
 state = AppState()
 
 
 def describe_redis_connection() -> str:
-    if REDIS_SENTINEL_MASTER and REDIS_SENTINEL_NODES:
+    if settings.redis_sentinel_master and settings.redis_sentinel_nodes:
         return (
-            f"sentinel master={REDIS_SENTINEL_MASTER}, "
-            f"nodes={REDIS_SENTINEL_NODES}"
+            f"sentinel master={settings.redis_sentinel_master}, "
+            f"nodes={settings.redis_sentinel_nodes}"
         )
-    return REDIS_URL
-
-
-def field_exists_in_mapping(properties: Dict[str, Any], field_name: str) -> bool:
-    current = properties
-    parts = field_name.split(".")
-    for idx, part in enumerate(parts):
-        field_info = current.get(part)
-        if field_info is None:
-            return False
-        if idx == len(parts) - 1:
-            return True
-        if "properties" in field_info:
-            current = field_info["properties"]
-            continue
-        if "fields" in field_info:
-            current = field_info["fields"]
-            continue
-        return False
-    return False
-
-
-def validate_search_index(index_name: str, field_name: str, use_vector: bool) -> None:
-    try:
-        index_info = es_client.indices.get(index=index_name)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=404, detail=f"Index '{index_name}' not found"
-        ) from exc
-
-    properties = (
-        index_info.get(index_name, {}).get("mappings", {}).get("properties", {})
-    )
-    if not field_exists_in_mapping(properties, field_name):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Field '{field_name}' does not exist in index '{index_name}'",
-        )
-    if use_vector and not field_exists_in_mapping(properties, "vector"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Index '{index_name}' does not contain vector field",
-        )
-
-
-def get_embedding_model() -> LocalOpenAIEmbeddingModel:
-    if state.rag_model and state.rag_model.embedding_model:
-        return state.rag_model.embedding_model
-    return LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
-
-
-def documents_to_passages(documents: List[Any]) -> Dict[str, List[Any]]:
-    passages: Dict[str, List[Any]] = {
-        "text": [],
-        "pages_number": [],
-        "content_table": [],
-        "content_image": [],
-        "ori_text": [],
-        "file_name": [],
-        "file_id": [],
-        "segment_id": [],
-        "file_path": [],
-        "bucket_name": [],
-    }
-
-    for doc in documents:
-        metadata = getattr(doc, "metadata", {}) or {}
-        text = getattr(doc, "page_content", "") or metadata.get("text", "")
-        passages["text"].append(text)
-        passages["pages_number"].append(metadata.get("pages_number"))
-        passages["content_table"].append(metadata.get("content_table") or [])
-        passages["content_image"].append(metadata.get("content_image") or [])
-        passages["ori_text"].append(metadata.get("ori_text") or text)
-        passages["file_name"].append(metadata.get("file_name"))
-        passages["file_id"].append(metadata.get("file_id"))
-        passages["segment_id"].append(metadata.get("segment_id"))
-        passages["file_path"].append(metadata.get("file_path"))
-        passages["bucket_name"].append(metadata.get("bucket_name"))
-
-    return passages
+    return settings.redis_url
 
 
 def _resolve_index_passages_worker(
@@ -317,10 +172,6 @@ def resolve_index_passages(payload: IndexPayload) -> Dict[str, List[Any]]:
 async def lifespan(app: FastAPI):
     # Startup: 初始化所有连接
     print("正在初始化系统资源...")
-    scheduler.start()
-    os.environ["OPENAI_API_KEY"] = LLM_API_KEY
-    os.environ["OPENAI_BASE_URL"] = LLM_BASE_URL
-
     log_dir = "logs/"
     os.makedirs(log_dir, exist_ok=True)
     setup_logging(os.path.join(log_dir, "log.txt"))
@@ -329,15 +180,18 @@ async def lifespan(app: FastAPI):
     redis_client = get_redis_client()
     redis_client.ping()
 
-    embedding_model = LocalOpenAIEmbeddingModel(EMBEDDING_API_URL, EMBEDDING_MODEL_NAME)
+    model_providers = create_model_providers()
+    embedding_model = model_providers.embedding
+    state.llm_provider = model_providers.llm
 
     es_client = get_es_client()
+    search_store = ElasticsearchSearchStore(es_client)
 
-    neo4j_driver = Neo4jGraph(
-        uri=NEO4J_URI,
-        user=NEO4J_USER,
-        password=NEO4J_PASSWORD,
-        database=NEO4J_DATABASE,
+    neo4j_driver = Neo4jDriver(
+        uri=settings.neo4j_uri,
+        user=settings.neo4j_user,
+        password=settings.neo4j_password,
+        database=settings.neo4j_database,
     )
     state.neo4j_write_queue = RedisNeo4jWriteQueue(
         neo4j_driver=neo4j_driver,
@@ -345,19 +199,24 @@ async def lifespan(app: FastAPI):
     )
     state.neo4j_write_queue.start()
     print(f"Redis Neo4j 写入队列已启动: {describe_redis_connection()}")
-
-    config = LinearRAGConfig(
-        embedding_model=embedding_model,
-        spacy_model=SPACY_MODEL,
-        max_workers=MAX_WORKERS,
-        working_dir="./import_qwen_new",
+    graph_store = Neo4jGraphStore(
+        graph_driver=neo4j_driver,
+        write_queue=state.neo4j_write_queue,
     )
+
+    config = settings.runtime_config(embedding_model)
 
     state.rag_model = LinearRAG(
         global_config=config,
-        es_client=es_client,
-        neo4j_driver=neo4j_driver,
-        neo4j_write_queue=state.neo4j_write_queue,
+        search_store=search_store,
+        graph_store=graph_store,
+        embedding_provider=embedding_model,
+    )
+    state.embedding_provider = embedding_model
+    state.kb_service = KnowledgeBaseService(
+        search_store=search_store,
+        embedding_provider=embedding_model,
+        vector_dim=settings.embedding_dim,
     )
     print("系统初始化完成，准备就绪。")
     yield
@@ -408,23 +267,13 @@ def index_documents(payload: IndexPayload):
 )
 def index_single_passage(payload: SinglePassagePayload):
     """
-    向 ES 上传单独片段接口，文本会自动向量化
+    向搜索库上传单独片段接口，文本会自动向量化
     """
     try:
-        embedding_model = LocalOpenAIEmbeddingModel(LLM_BASE_URL, EMBEDDING_MODEL_NAME)
-        vectors = embedding_model.encode(payload.texts)
-
-        hash_ids = [
-            compute_mdhash_id(text, prefix=f"{payload.keyword}-")
-            for text in payload.texts
-        ]
-
-        es_tool = Customize_Elastic(es_client)
-        es_tool.save_batch(
-            hash_ids=hash_ids,
-            doc_infos=[{"text": text} for text in payload.texts],
-            embeddings=vectors,
+        hash_ids = state.kb_service.upsert_passages(
             index_name=payload.index_name,
+            texts=payload.texts,
+            keyword=payload.keyword,
         )
 
         return Response(
@@ -449,15 +298,13 @@ def index_single_passage(payload: SinglePassagePayload):
 )
 def delete_single_passage(payload: DeleteSinglePassagePayload):
     """
-    按 ES _id 删除 index_single 上传的片段
+    按文档 ID 删除 index_single 上传的片段
     """
     try:
         ids = payload.normalized_ids()
-        es_tool = Customize_Elastic(es_client)
-        result = es_tool.delete_by_ids(
+        result = state.kb_service.delete_passages_by_ids(
             index_name=payload.index_name,
             ids=ids,
-            refresh=True,
         )
 
         return Response(
@@ -466,7 +313,6 @@ def delete_single_passage(payload: DeleteSinglePassagePayload):
             data={
                 "status": "success",
                 "message": f"Deleted {result.get('deleted', 0)} passages from {payload.index_name}",
-                "ids": ids,
                 **result,
             },
         )
@@ -485,7 +331,10 @@ def retrieve_documents(payload: RetrievePayload):
     try:
         questions = payload.questions
         results = state.rag_model.retrieve(
-            questions, index_names=payload.index_names, top_k=payload.top_k
+            questions,
+            index_names=payload.index_names,
+            top_k=payload.top_k,
+            search_mode=payload.search_mode,
         )
         return Response(code="0", msg="ok", data=results[0])
     except Exception as e:
@@ -530,7 +379,7 @@ def delete_knowledgebase(request: DeleteKBRequest):
     删除知识库接口
     """
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    es_client.indices.delete(index=request.index_name, ignore_unavailable=True)
+    state.kb_service.delete_knowledgebase(request.index_name)
     return Response(
         code="0",
         msg="ok",
@@ -552,7 +401,7 @@ class CreateKBRequest(BaseModel):
 def create_knowledgebase(request: CreateKBRequest):
     """创建知识库"""
     logger.info(f"入参：\n{request.model_dump_json(indent=2)}")
-    es_client.indices.create(index=request.index_name, body=default_settings)
+    state.kb_service.create_knowledgebase(request.index_name)
     return Response(
         code="0",
         msg="ok",
@@ -566,55 +415,24 @@ def create_knowledgebase(request: CreateKBRequest):
 @app.post("/admin_api/python-knowledge-management/search_es", response_model=Response)
 def search_es_documents(payload: ESSearchPayload):
     """
-    ES 查询接口
+    搜索库查询接口，支持向量、BM25 和混合检索
     """
     try:
-        validate_search_index(
+        search_mode = payload.search_mode or (
+            SearchMode.VECTOR if payload.use_vector else SearchMode.BM25
+        )
+        data = state.kb_service.search(
             index_name=payload.index_name,
             field_name=payload.field_name,
-            use_vector=payload.use_vector,
+            search_key=payload.search_key,
+            mode=search_mode,
+            top_k=payload.top_k,
         )
-
-        es_tool = Customize_Elastic(es_client)
-        if payload.use_vector:
-            query_vector = get_embedding_model().encode([payload.search_key])[0]
-            response = es_tool.es_search(
-                index_name=payload.index_name,
-                knn={
-                    "field": "vector",
-                    "query_vector": query_vector,
-                    "k": payload.top_k,
-                    "num_candidates": max(payload.top_k * 10, 100),
-                    "filter": {
-                        "bool": {"must": [{"exists": {"field": payload.field_name}}]}
-                    },
-                },
-            )
-        else:
-            response = es_tool.es_search(
-                index_name=payload.index_name,
-                query_body={
-                    "size": payload.top_k,
-                    "query": {"match": {payload.field_name: payload.search_key}},
-                },
-            )
-
-        hits = response.get("hits", {}).get("hits", [])
-        data = [
-            {
-                "index": hit.get("_index"),
-                "id": hit.get("_id"),
-                "score": hit.get("_score"),
-                "source": {
-                    "text": hit.get("_source", {}).get("text"),
-                    "hash_id": hit.get("_source", {}).get("hash_id"),
-                    "type": hit.get("_source", {}).get("type"),
-                },
-            }
-            for hit in hits
-        ]
-
         return Response(code="0", msg="ok", data=data)
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 404 if "not found" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail) from exc
     except HTTPException:
         raise
     except Exception as exc:

@@ -4,10 +4,16 @@ import os
 import spacy
 
 class SpacyNER:
+    """基于 spaCy 的实体识别实现。"""
+
     def __init__(self,spacy_model):
+        """加载指定名称的 spaCy 模型。"""
+
         self.spacy_model = spacy.load(spacy_model)
 
     def batch_ner(self, hash_id_to_passage, max_workers):
+        """批量提取段落实体，兼容旧的调用名称。"""
+
         all_keys  = list(hash_id_to_passage.keys())
         passage_texts = list(hash_id_to_passage.values())
         requested_workers = int(os.getenv("SPACY_N_PROCESS", "1"))
@@ -27,6 +33,8 @@ class SpacyNER:
         return passage_hash_id_to_entities
             
     def extract_entities_sentences(self, doc,passage_hash_id):
+        """提取整篇段落实体以及句子级实体。"""
+
         sentence_to_entities = defaultdict(list)
         unique_entities = set()
         passage_hash_id_to_entities = {}
@@ -42,6 +50,8 @@ class SpacyNER:
         return passage_hash_id_to_entities,sentence_to_entities
 
     def question_ner(self, question: str):
+        """提取问题实体，兼容旧的调用名称。"""
+
         doc = self.spacy_model(question)
         question_entities = set()
         for ent in doc.ents:
@@ -49,3 +59,17 @@ class SpacyNER:
                 continue
             question_entities.add(ent.text.lower())
         return question_entities
+
+    def extract_question_entities(self, question: str) -> set[str]:
+        """实现 EntityExtractor 端口的问题实体提取方法。"""
+
+        return self.question_ner(question)
+
+    def extract_passage_entities(
+        self,
+        hash_id_to_passage,
+        max_workers: int,
+    ) -> dict[str, list[str]]:
+        """实现 EntityExtractor 端口的段落实体提取方法。"""
+
+        return self.batch_ner(hash_id_to_passage, max_workers)

@@ -4,13 +4,11 @@ import re
 import uuid
 from typing import Any, Iterable, List, Optional
 
-import boto3
 import fitz
 import pandas as pd
 import pdfplumber
 import PIL
 import PyPDF2
-from botocore.exceptions import ClientError
 from langchain_core.documents import Document
 from langchain_text_splitters.character import (
     RecursiveCharacterTextSplitter,
@@ -18,7 +16,8 @@ from langchain_text_splitters.character import (
 
 from loguru import logger
 
-from src.core.config import minio_access_key, minio_secret_key, minio_service_addresses
+from src.models import ParsedDocument
+from src.interfaces.document import ObjectStorage
 
 
 def _split_text_with_regex_from_end(
@@ -54,9 +53,9 @@ class ChineseRecursiveTextSplitter(RecursiveCharacterTextSplitter):
             "\n\n",
             "\n",
             "。|！|？",
-            "\.\s|\!\s|\?\s",
-            "；|;\s",
-            "，|,\s",
+            r"\.\s|\!\s|\?\s",
+            r"；|;\s",
+            r"，|,\s",
         ]
         self._is_separator_regex = is_separator_regex
 
@@ -530,28 +529,6 @@ def extract_toc_from_fitz(title_info, level):
     ]
 
 
-def upload_file_to_mino(
-    s3_client, bucket_name, object_name, file_data: io.BytesIO, length
-):
-    try:
-        # 确认存储桶是否存在
-        try:
-            s3_client.head_bucket(Bucket=bucket_name)
-        except ClientError as e:
-            # If a client error is thrown, then check that it was a 404 error.
-            # If it was a 404 error, then the bucket does not exist.
-            error_code = int(e.response["Error"]["Code"])
-            if error_code == 404:
-                s3_client.create_bucket(Bucket=bucket_name)
-                logger.info(f"Created  bucket '{bucket_name}'")
-            else:
-                raise
-        file_data.seek(0)
-        s3_client.upload_fileobj(file_data, bucket_name, object_name)
-    except ClientError as exc:
-        logger.error(f"Error  occurred: {exc}")
-
-
 def insert_mark_near_position(text_lines, chars, bbox, mark):
     # 找到最接近边界框顶部的文本行
     nearest_line_index, nearest_line_y = find_nearest_line(text_lines, chars, bbox[1])
@@ -577,18 +554,47 @@ def convert_title_with_paragraph_breaks(text):
 
 
 class PDFParser:
-    def __init__(self, bucket_name: str, file_path: str, file_id: str | None = None):
+    """PDF 文档解析器，对象存储通过端口注入，便于替换 MinIO。"""
+
+    def __init__(
+        self,
+        bucket_name: str,
+        file_path: str,
+        file_id: str | None = None,
+        object_storage: ObjectStorage | None = None,
+    ):
+        """保存解析参数，并允许调用方注入任意对象存储实现。"""
+
         self.bucket_name = bucket_name
         self.file_path = file_path
         self.file_id = file_id
+        self.object_storage = object_storage
 
-    def get_s3_info(self, s3_client):
+    def get_file_bytes(self, object_storage: ObjectStorage) -> bytes:
+        """从对象存储读取待解析文件。"""
+
         logger.info(f"Bucket_name :{self.bucket_name}  Key: {self.file_path}")
-        response = s3_client.get_object(Bucket=self.bucket_name, Key=self.file_path)
-        file_content = response["Body"].read()
-        return file_content
+        return object_storage.get_bytes(self.bucket_name, self.file_path)
 
-    def get_chunk(self) -> List[Document]:
+    def parse(
+        self,
+        bucket_name: str | None = None,
+        file_path: str | None = None,
+        file_id: str | None = None,
+    ) -> List[ParsedDocument]:
+        """实现 DocumentParser 端口，解析指定文件并返回统一文档模型。"""
+
+        if bucket_name is not None:
+            self.bucket_name = bucket_name
+        if file_path is not None:
+            self.file_path = file_path
+        if file_id is not None:
+            self.file_id = file_id
+        return self.get_chunk()
+
+    def get_chunk(self) -> List[ParsedDocument]:
+        """执行 PDF 下载、结构识别、内容抽取和切片。"""
+
         if self.file_path:  # http://192.168.102.19:9001/1735128508277071872/tte.pdf
             file_id = None
             if self.file_id:
@@ -597,14 +603,12 @@ class PDFParser:
             else:
                 file_id = str(uuid.uuid4())
                 logger.info(f"自动生成的 file_id: {file_id}")
-            s3_client = boto3.client(
-                "s3",
-                endpoint_url=f"http://{minio_service_addresses}",
-                aws_access_key_id=minio_access_key,
-                aws_secret_access_key=minio_secret_key,
-                config=boto3.session.Config(signature_version="s3v4"),
-                verify=False,  # equivalent to secure=False in MinIO
-            )
+            object_storage = self.object_storage
+            if object_storage is None:
+                # 延迟导入默认适配器，避免业务层在导入阶段绑定 MinIO。
+                from src.adapters.storage.minio_storage import MinioObjectStorage
+
+                object_storage = MinioObjectStorage()
             use_table = False
             use_image = False
             logger.info(f"是否使用表格：{use_table}")
@@ -612,7 +616,7 @@ class PDFParser:
             # bucket_name, file_name = self.get_url_info()
             bucket_name = self.bucket_name
             file_name = self.file_path.split("/")[-1]
-            file_bytes = self.get_s3_info(s3_client)
+            file_bytes = self.get_file_bytes(object_storage)
             bytes_io = io.BytesIO(file_bytes)
             structure_info = detect_pdf_structure(file_bytes=file_bytes)
 
@@ -662,12 +666,11 @@ class PDFParser:
                                 )
                                 text = text_with_image_mark
 
-                                upload_file_to_mino(
-                                    s3_client=s3_client,
+                                object_storage.put_bytes(
                                     bucket_name=bucket_name,
                                     object_name=image_name,
-                                    file_data=image_data,
-                                    length=len(image_data_bin),
+                                    data=image_data_bin,
+                                    content_type="image/png",
                                 )
                             except IndexError as e:
                                 logger.warning("图片上传错误，已经跳过！")
@@ -973,7 +976,13 @@ class PDFParser:
                     }
                 )
             logger.info(f"file_name: {file_name}  file_id: {file_id}")
-            return docs
+            return [
+                ParsedDocument(
+                    text=doc.page_content,
+                    metadata=dict(doc.metadata),
+                )
+                for doc in docs
+            ]
 
 
 if __name__ == "__main__":

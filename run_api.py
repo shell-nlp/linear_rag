@@ -3,78 +3,64 @@
 import os
 import warnings
 
-from src.core.config import (
-    EMBEDDING_API_URL,
-    EMBEDDING_MODEL_NAME,
-    LLM_API_KEY,
-    LLM_BASE_URL,
-    LLM_MODEL_NAME,
-    MAX_WORKERS,
-    NEO4J_DATABASE,
-    NEO4J_PASSWORD,
-    NEO4J_URI,
-    NEO4J_USER,
-    SPACY_MODEL,
-    LinearRAGConfig,
-    es_password,
-    es_url,
-    es_user,
-)
-from src.core.utils import get_es_client, setup_logging
-from src.infra.neo4j.db import Neo4jGraph
-from src.nlp.embedding import LocalOpenAIEmbeddingModel
+from src.model_providers import create_embedding_provider
+from src.common.settings import get_settings
+from src.common.utils import get_es_client, setup_logging
+from src.adapters.graph import Neo4jDriver, Neo4jGraphStore
+from src.adapters.search import ElasticsearchSearchStore
 from src.services.linear_rag import LinearRAG
 
 warnings.filterwarnings("ignore")
 
 
 DATASET_NAME = "miyun_test"  # 要使用的数据集名称S
-# SPACY_MODEL = "en_core_web_trf"
-# SPACY_MODEL = "xx_ent_wiki_sm"  #多语言模型
+settings = get_settings()
 
 
 def setup_environment():
     """设置OpenAI库所需的环境变量，使其指向您的本地LLM服务。"""
-    os.environ["OPENAI_API_KEY"] = LLM_API_KEY
-    os.environ["OPENAI_BASE_URL"] = LLM_BASE_URL
-    print(f"环境变量已设置: OPENAI_BASE_URL -> {LLM_BASE_URL}")
+    os.environ["OPENAI_API_KEY"] = settings.llm_api_key
+    os.environ["OPENAI_BASE_URL"] = settings.llm_base_url
+    print(f"环境变量已设置: OPENAI_BASE_URL -> {settings.llm_base_url}")
 
 
 def load_local_embedding_model(api_url, model_name):
     """实例化本地Embedding模型的API客户端。"""
     print(f"连接到本地Embedding服务: {api_url} (模型: {model_name})")
-    return LocalOpenAIEmbeddingModel(api_url, model_name)
+    return create_embedding_provider(
+        api_url=api_url,
+        model_name=model_name,
+        api_key=settings.llm_api_key,
+    )
 
 
 def main():
     """主执行函数"""
     setup_environment()
     embedding_model = load_local_embedding_model(
-        EMBEDDING_API_URL, EMBEDDING_MODEL_NAME
+        settings.embedding_api_url,
+        settings.embedding_model_name,
     )
 
     log_dir = f"results/{DATASET_NAME}"
     os.makedirs(log_dir, exist_ok=True)
     setup_logging(os.path.join(log_dir, "log.txt"))
 
-    print(f"初始化LLM客户端 (模型: {LLM_MODEL_NAME})")
+    print(f"初始化LLM客户端 (模型: {settings.llm_model_name})")
 
     es_client = get_es_client()
+    search_store = ElasticsearchSearchStore(es_client)
 
-    neo4j_driver = Neo4jGraph(
-        uri=NEO4J_URI,
-        user=NEO4J_USER,
-        password=NEO4J_PASSWORD,
-        database=NEO4J_DATABASE,
+    neo4j_driver = Neo4jDriver(
+        uri=settings.neo4j_uri,
+        user=settings.neo4j_user,
+        password=settings.neo4j_password,
+        database=settings.neo4j_database,
     )
+    graph_store = Neo4jGraphStore(neo4j_driver)
 
     print("开始创建索引...")
-    config = LinearRAGConfig(
-        embedding_model=embedding_model,
-        spacy_model=SPACY_MODEL,
-        max_workers=MAX_WORKERS,
-        working_dir="./import_qwen_new",
-    )
+    config = settings.runtime_config(embedding_model)
 
     document_list = [
         "密云水库坐落在燕山南麓密云区境内，距北京市中心约90km，总库容 43.75 亿 m3，为华北地区最大的水库。工程于 1958 年 9 月动工兴建，1959 年汛期拦洪，1960 年 9 月基本建成，是一座具有防洪、供水等多种功能综合利用、多年调节的大型水利枢纽，目前是首都北京最重要的地表饮用水源地。水库工程按千年一遇洪水设计，万年一遇洪水校核，坝顶高程 160.00m，校核水位 158.50m，设计水位 157.50m，汛期限制水位 152.00m，死水位 126.00m，调洪库容 11.08亿 m3，防洪库容 9.27 亿 m3，兴利库容 35.45 亿 m3，死库容4.19 亿 m3。密云水库水工建筑物及附属设施众多，主要包括 7 座主副坝、3 座溢洪道、7 条输泄水隧洞、1 座调节池、41 扇闸门、43 台启闭机、43.55km 高低压线路、36 台变压器、16台发电机等。",
@@ -94,7 +80,10 @@ def main():
     }
 
     rag_model = LinearRAG(
-        global_config=config, es_client=es_client, neo4j_driver=neo4j_driver
+        global_config=config,
+        search_store=search_store,
+        graph_store=graph_store,
+        embedding_provider=embedding_model,
     )
     rag_model.index(passages, kb_name="hh_test")
 
