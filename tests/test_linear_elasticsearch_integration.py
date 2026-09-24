@@ -51,6 +51,8 @@ class LinearElasticsearchIntegrationTests(unittest.TestCase):
             iteration_threshold=0.5, passage_ratio=1.5,
             passage_node_weight=0.05, damping=0.5,
             linear_embedding_batch_size=128,
+            linear_seed_entities=5, linear_passages_per_entity=5,
+            linear_local_max_passages=10, linear_local_max_sentences=20,
         )
         embedding, ner = FixedEmbedding(), FixedNER()
         indexing = IndexingService(config, embedding, store, ner)

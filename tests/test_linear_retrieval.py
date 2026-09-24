@@ -34,6 +34,9 @@ class Store:
 
     def __init__(self):
         self.scans = []
+        self.queries = []
+        self.entity_passage_calls = []
+        self.graph_node_calls = []
         self.documents = [
             SearchDocument("p1", "甲乙", [1.0, 0.0], "passage", {
                 "entity_ids": ["a", "b"],
@@ -72,7 +75,27 @@ class Store:
         return result
 
     def search(self, query):
+        self.queries.append(query)
+        if query.filters.get("type") == "entity":
+            return [SearchHit("a-node", 0.9, self.documents[2])]
         return [SearchHit("p1", 1.0, self.documents[0])]
+
+    def search_entity_passages(self, index_names, entity_ids, per_entity_limit):
+        self.entity_passage_calls.append((list(entity_ids), per_entity_limit))
+        return [
+            SearchHit(item.id, 0.0, item)
+            for item in self.documents
+            if item.doc_type == "passage"
+            and set(item.metadata.get("entity_ids", [])) & set(entity_ids)
+        ][:per_entity_limit]
+
+    def search_graph_nodes(self, index_names, doc_type, filters, limit):
+        self.graph_node_calls.append((doc_type, filters, limit))
+        return [
+            item for item in self.documents
+            if item.doc_type == doc_type
+            and item.metadata.get("passage_id") in filters.get("passage_id", [])
+        ][:limit]
 
     def get_documents_by_ids(self, index_names, ids):
         return {item.id: item for item in self.documents if item.id in ids}
@@ -91,6 +114,10 @@ def config():
         passage_ratio=1.5,
         passage_node_weight=0.05,
         damping=0.5,
+        linear_seed_entities=5,
+        linear_passages_per_entity=5,
+        linear_local_max_passages=10,
+        linear_local_max_sentences=10,
     )
 
 
@@ -112,9 +139,10 @@ class LinearRetrievalTests(unittest.TestCase):
         retriever = LinearRetriever(config(), Embedding(), NER(), store)
         result = retriever.retrieve("问题", ["kb"], 2, local=True)
         self.assertEqual([item["hash_id"] for item in result], ["p1"])
-        self.assertEqual(len(store.scans), 2)
+        self.assertEqual(len(store.scans), 1)
         self.assertEqual(store.scans[0][1], {"entity_id": ["a", "b"]})
-        self.assertEqual(store.scans[1][1]["passage_id"], ["p1"])
+        self.assertEqual(store.graph_node_calls[0][1]["passage_id"], ["p1"])
+        self.assertEqual(store.entity_passage_calls, [(["a"], 5)])
 
     def test_no_query_entity_falls_back_to_dense_passages(self):
         """没有问题实体时不运行 PPR，按段落向量回退。"""
@@ -148,6 +176,36 @@ class LinearRetrievalTests(unittest.TestCase):
         retriever = LinearRetriever(config(), Embedding(), NER(), store)
         with self.assertRaisesRegex(ValueError, "重新上传"):
             retriever.retrieve("问题", ["kb"], 2, local=False)
+
+    def test_entity_path_recovers_passage_missing_from_vector_top_k(self):
+        """向量候选漏掉的实体关联段落必须进入局部 PPR 候选。"""
+
+        store = Store()
+        store.documents[1].metadata["entity_ids"] = ["a"]
+        store.documents[1].metadata["entities"] = [
+            {"id": "a", "name": "甲"}
+        ]
+        retriever = LinearRetriever(config(), Embedding(), NER(), store)
+
+        results = retriever.retrieve("问题", ["kb"], 2, local=True)
+
+        self.assertEqual({item["hash_id"] for item in results}, {"p1", "p2"})
+        self.assertEqual(store.entity_passage_calls, [(["a"], 5)])
+
+    def test_local_budgets_limit_passages_and_sentences(self):
+        """实体段落优先，候选段落和句子均不得超出局部预算。"""
+
+        store = Store()
+        store.documents[1].metadata["entity_ids"] = ["a"]
+        limited = config()
+        limited.linear_local_max_passages = 1
+        limited.linear_local_max_sentences = 0
+        retriever = LinearRetriever(limited, Embedding(), NER(), store)
+
+        results = retriever.retrieve("问题", ["kb"], 2, local=True)
+
+        self.assertEqual(len(results), 1)
+        self.assertFalse(store.graph_node_calls)
 
 
 if __name__ == "__main__":

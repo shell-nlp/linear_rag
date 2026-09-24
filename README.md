@@ -38,7 +38,7 @@ Embedding；在 `igraph` 中建立实体—段落加权边和相邻段落边，�
 
 本项目把段落、句子、实体节点及关联信息保存在同一个搜索库中，不另设图数据库。
 `linear` 从 ES 读取知识库图，运行问题 NER、种子匹配、句子桥接、多轮激活与应用层
-PPR；`linear_local` 先以 ES 向量检索选段落，再读取关联节点，在候选子图运行同一套
+PPR；`linear_local` 合并 ES 向量候选和问题实体关联段落，再读取关联节点，在候选子图运行同一套
 计算。原来的 `vector`、`bm25`、`hybrid` 仍保持低延迟快速路径：主召回后只做
 一次实体与邻接扩展，再按 RRF 融合。`SearchStore` 负责数据库访问，不承担算法计算。
 
@@ -128,13 +128,30 @@ PPR；`linear_local` 先以 ES 向量检索选段落，再读取关联节点，�
 - `linear`：读取知识库全图（上限 `LINEAR_MAX_NODES`），从问题 NER 匹配实体种子，
   经句子相似度做多轮实体激活，结合段落相似度与实体提及次数构造重启权重，
   在应用进程运行 PPR；无种子时回退段落余弦排序。
-- `linear_local`：先用 ES 向量 top-k 召回候选段落，再读取相关实体与句子，
-  在候选子图运行同一计算。它相对全图减少图读取和 PPR 规模，但候选裁剪会改变结果；
+- `linear_local`：ES 向量召回段落，同时通过问题 NER 和实体向量检索种子，再按实体 ID
+  各取有限数量的关联段落；关联段落优先与向量候选去重合并，按总预算读取实体和句子节点，
+  在候选子图运行 PPR。它相对全图减少图读取和 PPR 规模，但候选裁剪会改变结果；
   因多做 NER、句子读取与图计算，不能保证比原有 top-k/RRF 快速模式更快。
 - 目前每次 `linear` 请求都从 ES 读取图；大知识库会有内存和请求耗时开销。
   全图超限会报错，不会静默截断。生产优化应考虑按知识库版本缓存图快照，
   并与作者代码及局部模式做 Recall@K、排序和延迟对照。
 - 两种图模式当前一次只查询一个知识库；多知识库联合检索可使用快速模式。
+- `LINEAR_SEED_ENTITIES` 限制问题实体数，`LINEAR_PASSAGES_PER_ENTITY` 限制每实体段落数，
+  `LINEAR_LOCAL_MAX_PASSAGES` 限制合并后的段落数，`LINEAR_LOCAL_MAX_SENTENCES` 限制句子节点数；
+  命中高频实体时不会全量扫描其关联段落。当前实体节点仍按选中实体 ID 扫描，
+  须通过 `LINEAR_MAX_NODES` 限制整个局部图规模。
+
+### 规模边界
+
+当前 `linear` 会把知识库图节点和向量读取到应用进程，只适合中小规模知识库和官方算法对照。
+百万级节点不能按请求扫描全图；上亿节点仅 1024 维 float32 向量就接近 400 GB，尚未计算
+文本、边和对象开销。生产规模应采用以下路径：
+
+1. 用 ES 或独立向量库完成段落、实体和句子的候选召回。
+2. 限制种子实体数、扩展跳数和子图节点数，在候选子图上做近似 PPR 或有界随机游走。
+3. 在离线任务中预计算实体重要度、实体关联段落、社区、邻接摘要和常用 PPR 信号。
+4. 按知识库或租户分片，使用 Spark、GraphX、GraphScope、cuGraph 等分布式图计算处理全图。
+5. 只有在线不定深度多跳成为核心需求时，才评估独立图数据库；不要把单机 `igraph` 或 NumPy 全图排序当作上亿节点的解决方案。
 
 ## 快速开始
 
@@ -197,6 +214,7 @@ PPR；`linear_local` 先以 ES 向量检索选段落，再读取关联节点，�
 | 关系扩展 | `ENTITY_EXPANSION_*`、`NEIGHBOR_EXPANSION_ENABLED` | 控制实体和相邻段落扩展 |
 | 图算法 | `LINEAR_MAX_ITERATIONS`、`LINEAR_TOP_K_SENTENCE`、`LINEAR_PASSAGE_RATIO`、`LINEAR_PASSAGE_NODE_WEIGHT`、`LINEAR_DAMPING`、`LINEAR_ITERATION_THRESHOLD` | 官方计算路径参数 |
 | 图规模 | `LINEAR_LOCAL_CANDIDATES`、`LINEAR_MAX_NODES`、`LINEAR_EMBEDDING_BATCH_SIZE` | 局部候选数、图读取上限与索引向量批量 |
+| 局部预算 | `LINEAR_SEED_ENTITIES`、`LINEAR_PASSAGES_PER_ENTITY`、`LINEAR_LOCAL_MAX_PASSAGES`、`LINEAR_LOCAL_MAX_SENTENCES` | 种子数、每实体关联段落、总段落和句子上限 |
 | 对象存储 | `OBJECT_STORAGE_PROVIDER`、`LOCAL_STORAGE_ROOT` | 使用 `local` 或 `minio` 实现 |
 | MinIO | `MINIO_ENDPOINT_URL`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY` | `OBJECT_STORAGE_PROVIDER=minio` 时必填 |
 | Elasticsearch | `es_url`、`es_user`、`es_password` | 搜索数据库连接配置 |
@@ -312,6 +330,18 @@ uv run python -B -m unittest discover -s tests -p test_real_pdf_integration.py -
 ```
 
 真实集成测试会使用独立的 `linearrag-*` 测试索引和本地测试对象，结束后清理。
+
+局部图检索压测可直接运行：
+
+```powershell
+uv run python -B scripts/benchmark_linear_local.py `
+  --passages 1000 5000 20000 50000 `
+  --candidates 200 1000 2000 `
+  --queries 5
+```
+
+脚本使用固定向量和固定 NER，只测量 ES 候选召回、实体/句子扫描和局部 PPR，
+避免远端模型延迟干扰；每个场景使用临时索引并在结束时删除。
 
 ## Docker
 

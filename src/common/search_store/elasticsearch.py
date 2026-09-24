@@ -290,6 +290,71 @@ class ElasticsearchSearchStore:
             return self._bm25_search(query)
         return self._hybrid_search(query)
 
+    def search_entity_passages(
+        self,
+        index_names: Sequence[str],
+        entity_ids: Sequence[str],
+        per_entity_limit: int,
+    ) -> list[SearchHit]:
+        """使用 msearch 分别约束每个实体的段落数，避免全量 scroll。"""
+
+        indices = self._existing_indices(index_names)
+        if not indices or not entity_ids:
+            return []
+        searches = []
+        for entity_id in dict.fromkeys(entity_ids):
+            searches.extend((
+                {"index": indices},
+                {
+                    "size": per_entity_limit,
+                    "query": {
+                        "bool": {
+                            "filter": [
+                                {"term": {"type": "passage"}},
+                                {"term": {"entity_ids": entity_id}},
+                            ]
+                        }
+                    },
+                    "sort": [{"hash_id": "asc"}],
+                },
+            ))
+        response = self.client.msearch(searches=searches)
+        hits = []
+        seen = set()
+        for item in response.get("responses", []):
+            if "error" in item:
+                raise RuntimeError(f"实体段落查询失败: {item['error']}")
+            for hit in self._response_to_hits(item):
+                if hit.id not in seen:
+                    seen.add(hit.id)
+                    hits.append(hit)
+        return hits
+
+    def search_graph_nodes(
+        self,
+        index_names: Sequence[str],
+        doc_type: str,
+        filters: dict[str, Any],
+        limit: int,
+    ) -> list[SearchDocument]:
+        """使用有界查询代替 scroll，避免高频实体导致全量节点扫描。"""
+
+        indices = self._existing_indices(index_names)
+        if not indices or limit <= 0:
+            return []
+        query = self._build_filter_query({"type": doc_type, **filters})
+        response = self.client.search(
+            index=indices,
+            body={
+                "size": limit,
+                "query": {"constant_score": {"filter": query}},
+                "sort": [{"hash_id": "asc"}],
+            },
+        )
+        return [
+            hit.document for hit in self._response_to_hits(response)
+        ]
+
     def scan_documents(
         self,
         index_names: Sequence[str],

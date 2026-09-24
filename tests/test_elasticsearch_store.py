@@ -46,10 +46,18 @@ class RecordingElasticsearchClient:
     def __init__(self):
         self.indices = ExistingIndicesClient()
         self.search_kwargs = None
+        self.msearch_kwargs = None
 
     def search(self, **kwargs):
         self.search_kwargs = kwargs
         return {"hits": {"hits": []}}
+
+    def msearch(self, **kwargs):
+        self.msearch_kwargs = kwargs
+        return {"responses": [
+            {"hits": {"hits": []}}
+            for _ in range(len(kwargs["searches"]) // 2)
+        ]}
 
 
 class ElasticsearchStoreTests(unittest.TestCase):
@@ -138,6 +146,37 @@ class ElasticsearchStoreTests(unittest.TestCase):
         query = scan.call_args.kwargs["query"]["query"]["bool"]["filter"]
         self.assertIn({"terms": {"type": ["entity"]}}, query)
         self.assertIn("entity_id", str(query))
+
+    def test_entity_passages_are_bounded_per_seed(self):
+        """每个种子实体独立限额，不能扫描整张实体倒排表。"""
+
+        client = RecordingElasticsearchClient()
+        store = ElasticsearchSearchStore(client)
+
+        store.search_entity_passages(["kb_test"], ["a", "b"], 5)
+
+        searches = client.msearch_kwargs["searches"]
+        self.assertEqual(len(searches), 4)
+        self.assertEqual(searches[1]["size"], 5)
+        self.assertIn({"term": {"entity_ids": "a"}}, searches[1]["query"]["bool"]["filter"])
+        self.assertIn({"term": {"entity_ids": "b"}}, searches[3]["query"]["bool"]["filter"])
+
+    def test_sentence_nodes_are_bounded(self):
+        """句子节点查询必须按候选段落过滤并限制 size。"""
+
+        client = RecordingElasticsearchClient()
+        store = ElasticsearchSearchStore(client)
+
+        self.assertEqual(
+            store.search_graph_nodes(
+                ["kb_test"], "sentence", {"passage_id": ["p1", "p2"]}, 3
+            ),
+            [],
+        )
+
+        query = client.search_kwargs["body"]
+        self.assertEqual(query["size"], 3)
+        self.assertIn("passage_id", str(query["query"]))
 
 
 if __name__ == "__main__":

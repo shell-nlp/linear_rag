@@ -33,6 +33,10 @@ class LinearRAGConfig(BaseModel):
     linear_local_candidates: int = 200
     linear_max_nodes: int = 100000
     linear_embedding_batch_size: int = 128
+    linear_seed_entities: int = 5
+    linear_passages_per_entity: int = 5
+    linear_local_max_passages: int = 250
+    linear_local_max_sentences: int = 750
 
 
 class Settings(BaseSettings):
@@ -114,6 +118,18 @@ class Settings(BaseSettings):
     linear_embedding_batch_size: int = Field(
         128, ge=1, validation_alias="LINEAR_EMBEDDING_BATCH_SIZE"
     )
+    linear_seed_entities: int = Field(
+        5, ge=1, validation_alias="LINEAR_SEED_ENTITIES"
+    )
+    linear_passages_per_entity: int = Field(
+        5, ge=1, validation_alias="LINEAR_PASSAGES_PER_ENTITY"
+    )
+    linear_local_max_passages: int = Field(
+        250, ge=1, validation_alias="LINEAR_LOCAL_MAX_PASSAGES"
+    )
+    linear_local_max_sentences: int = Field(
+        750, ge=0, validation_alias="LINEAR_LOCAL_MAX_SENTENCES"
+    )
     max_upload_bytes: int = Field(
         100 * 1024 * 1024,
         ge=1,
@@ -174,6 +190,10 @@ class Settings(BaseSettings):
             linear_local_candidates=self.linear_local_candidates,
             linear_max_nodes=self.linear_max_nodes,
             linear_embedding_batch_size=self.linear_embedding_batch_size,
+            linear_seed_entities=self.linear_seed_entities,
+            linear_passages_per_entity=self.linear_passages_per_entity,
+            linear_local_max_passages=self.linear_local_max_passages,
+            linear_local_max_sentences=self.linear_local_max_sentences,
         )
 
 

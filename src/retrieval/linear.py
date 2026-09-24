@@ -36,46 +36,13 @@ class LinearRetriever:
         if len(index_names) != 1:
             raise ValueError("linear 图模式一次只能查询一个知识库")
         question_vector = self._encode([question])[0]
+        names = self.ner.extract_question_entities(question)
         if local:
-            hits = self.store.search(
-                SearchQuery(
-                    index_names=index_names,
-                    mode=SearchMode.VECTOR,
-                    query_vector=question_vector.tolist(),
-                    top_k=self.config.linear_local_candidates,
-                    num_candidates=max(100, self.config.linear_local_candidates * 4),
-                    filters={"type": "passage"},
-                )
+            passages, entities, sentences, seeds = self._load_local_graph(
+                question_vector, names, index_names
             )
-            passages = [hit.document for hit in hits if hit.document.doc_type == "passage"]
             if not passages:
                 return []
-            selected_ids = {
-                entity_id
-                for passage in passages
-                for entity_id in passage.metadata.get("entity_ids") or []
-            }
-            if selected_ids:
-                # 局部图只读取候选关联节点，不扫描整个知识库。
-                remaining = self.config.linear_max_nodes - len(passages)
-                if remaining < 0:
-                    raise ValueError("图节点超过 LINEAR_MAX_NODES")
-                entities = self.store.scan_documents(
-                    index_names, ["entity"],
-                    {"entity_id": sorted(selected_ids)},
-                    remaining,
-                )
-                remaining -= len(entities)
-                sentences = self.store.scan_documents(
-                    index_names, ["sentence"],
-                    {
-                        "entity_ids": sorted(selected_ids),
-                        "passage_id": sorted(item.id for item in passages),
-                    },
-                    remaining,
-                )
-            else:
-                entities, sentences = [], []
         else:
             documents = self.store.scan_documents(
                 index_names, ["passage", "sentence", "entity"],
@@ -86,6 +53,7 @@ class LinearRetriever:
             sentences = [item for item in documents if item.doc_type == "sentence"]
             if not passages:
                 return []
+            seeds = None
         if not entities and any(
             passage.metadata.get("entity_ids") for passage in passages
         ):
@@ -98,17 +66,17 @@ class LinearRetriever:
             if entity_id and item.vector and entity_id not in unique_entities:
                 unique_entities[entity_id] = item
         named_entities = list(unique_entities.values())
-        names = self.ner.extract_question_entities(question)
         if not names or not named_entities:
             return self._dense_fallback(passages, question_vector, top_k)
-        name_vectors = self._encode(names)
-        entity_vectors = np.asarray([item.vector for item in named_entities])
-        seeds: dict[str, float] = {}
-        for vector in name_vectors:
-            similarities = entity_vectors @ vector
-            index = int(np.argmax(similarities))
-            entity_id = named_entities[index].metadata["entity_id"]
-            seeds[entity_id] = float(similarities[index])
+        if seeds is None:
+            name_vectors = self._encode(names)
+            entity_vectors = np.asarray([item.vector for item in named_entities])
+            seeds = {}
+            for vector in name_vectors:
+                similarities = entity_vectors @ vector
+                index = int(np.argmax(similarities))
+                entity_id = named_entities[index].metadata["entity_id"]
+                seeds[entity_id] = float(similarities[index])
 
         entity_to_sentences: dict[str, list[SearchDocument]] = defaultdict(list)
         for sentence in sentences:
@@ -169,6 +137,90 @@ class LinearRetriever:
             {**item.as_source(), "score": scores.get(item.id, 0.0)}
             for item in ordered[:top_k]
         ]
+
+    def _load_local_graph(
+        self,
+        question_vector: np.ndarray,
+        names: list[str],
+        index_names: list[str],
+    ) -> tuple[
+        list[SearchDocument], list[SearchDocument], list[SearchDocument], dict[str, float]
+    ]:
+        """合并向量与问题实体两路候选，再按预算读取局部图节点。"""
+
+        max_passages = self.config.linear_local_max_passages
+        vector_hits = self.store.search(
+            SearchQuery(
+                index_names=index_names,
+                mode=SearchMode.VECTOR,
+                query_vector=question_vector.tolist(),
+                top_k=min(self.config.linear_local_candidates, max_passages),
+                num_candidates=max(
+                    100, self.config.linear_local_candidates * 4
+                ),
+                filters={"type": "passage"},
+            )
+        )
+        seeds: dict[str, float] = {}
+        if names:
+            # 和 v0 一样先用实体向量找种子，不依赖段落向量能否召回目标。
+            for name_vector in self._encode(names[:self.config.linear_seed_entities]):
+                entity_hits = self.store.search(
+                    SearchQuery(
+                        index_names=index_names,
+                        mode=SearchMode.VECTOR,
+                        query_vector=name_vector.tolist(),
+                        top_k=1,
+                        num_candidates=100,
+                        filters={"type": "entity"},
+                    )
+                )
+                if entity_hits:
+                    entity = entity_hits[0].document
+                    entity_id = entity.metadata.get("entity_id")
+                    if entity_id:
+                        seeds[entity_id] = max(
+                            seeds.get(entity_id, 0.0), entity_hits[0].score
+                        )
+
+        entity_hits = self.store.search_entity_passages(
+            index_names,
+            sorted(seeds),
+            self.config.linear_passages_per_entity,
+        ) if seeds else []
+        # 种子关联段落优先保留；向量段落补足预算，保证稀有关系不会被截掉。
+        passage_map: dict[str, SearchDocument] = {}
+        for hit in [*entity_hits, *vector_hits]:
+            if hit.document.doc_type == "passage" and len(passage_map) < max_passages:
+                passage_map.setdefault(hit.id, hit.document)
+        passages = list(passage_map.values())
+        selected_ids = {
+            entity_id
+            for passage in passages
+            for entity_id in passage.metadata.get("entity_ids") or []
+        } | set(seeds)
+        if not selected_ids:
+            return passages, [], [], seeds
+
+        remaining = self.config.linear_max_nodes - len(passages)
+        if remaining < 0:
+            raise ValueError("图节点超过 LINEAR_MAX_NODES")
+        entities = self.store.scan_documents(
+            index_names, ["entity"],
+            {"entity_id": sorted(selected_ids)},
+            remaining,
+        )
+        remaining -= len(entities)
+        sentence_budget = min(
+            self.config.linear_local_max_sentences, remaining
+        )
+        sentences = self.store.search_graph_nodes(
+            index_names,
+            "sentence",
+            {"passage_id": sorted(passage_map)},
+            sentence_budget,
+        ) if sentence_budget else []
+        return passages, entities, sentences, seeds
 
     def _build_graph(
         self, passages: Sequence[SearchDocument], entities: dict[str, SearchDocument]

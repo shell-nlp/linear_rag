@@ -51,11 +51,15 @@
 - 作者参考实现是 `DEEP-PolyU/LinearRAG` 的 `src/LinearRAG.py`；`linear` 是全图计算路径，`linear_local` 是 ES 候选子图上的近似路径，`vector/bm25/hybrid` 是原有低延迟快速路径，三者不可混称等价。
 - 索引阶段 `IndexingService` 按文件生成段落、实体、句子节点与向量，使用文件来源隔离物理节点，同名实体以逻辑 `entity_id` 在查询图中合并。`FileIndexingWorkflow` 将这三类节点作为同一批提交和回滚；按 `file_id` 删除所有节点。
 - `SearchStore.scan_documents` 负责读取全图或局部关联节点并拒绝超限，不负责 PPR；`src/retrieval/linear.py` 负责种子实体匹配、句子桥接、多轮激活、实体—段落/相邻段落边、重启权重及应用层 PPR。
+- `linear_local` 必须合并问题实体关联段落和向量候选，实体关联段落优先；`SearchStore.search_entity_passages` 每实体有界，`search_graph_nodes` 按候选段落 ID 有界读取句子。预算由 `LINEAR_SEED_ENTITIES`、`LINEAR_PASSAGES_PER_ENTITY`、`LINEAR_LOCAL_MAX_PASSAGES`、`LINEAR_LOCAL_MAX_SENTENCES` 控制，不得恢复高频实体的全量扫描。
 - 图计算参数通过 `src/settings.py` 传入，样例见 `.env.example`。旧索引没有句子/实体节点，必须重新索引才能使用图模式。
 - 图节点数量可能远大于段落数；索引 Embedding 批量不得超过 `LINEAR_EMBEDDING_BATCH_SIZE`，避免远端批量请求长时间无响应。
 - PDF 解析和文本切片属于 CPU 密集型任务，生产路径必须经 `FileIndexingWorkflow` 的 `ProcessPoolExecutor` 执行；不得为简化调用把 `PDFParser.get_chunk` 移回 FastAPI 主进程或普通线程池。
 - 优化图读取或缓存时不得把局部 top-k 搜索说成全图 PPR 的数值等价；先以相同 NER、Embedding、语料与参数验证中间激活、排序、Recall@K 和延迟。快照缓存要有知识库版本及索引增删后的失效策略。
 - 图模式当前仅支持单知识库，避免不同索引的逻辑实体 ID 被隐式合并；多索引查询继续使用快速模式。不要绕过该约束而不设计跨索引身份与来源语义。
+- 百万级以上节点禁止每次请求扫描全图或执行全图 PPR；`linear` 只作为小规模算法基线和对照模式，生产查询必须使用 ES/向量库召回候选、限制扩展深度和子图节点数，并把实体重要度、社区、实体关联段落等信号放到离线任务预计算。
+- 上亿节点不能依赖单进程 `igraph`、NumPy 邻接表或单次全图排序；需要按知识库/租户分片，使用 Spark、GraphX、GraphScope、cuGraph 等离线图计算，在线只做有界随机游走、局部 PPR 或预计算信号读取。引入图数据库前必须证明在线多跳是核心需求。
+- 局部图性能回归使用 `scripts/benchmark_linear_local.py`，分别观察总索引规模、候选段落数和子图扫描规模；不要只测单个小 PDF 或只看 `top_k` 返回耗时。
 
 ## 注释和测试
 

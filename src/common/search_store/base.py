@@ -82,6 +82,27 @@ class SearchStore(Protocol):
 
         ...
 
+    def search_entity_passages(
+        self,
+        index_names: Sequence[str],
+        entity_ids: Sequence[str],
+        per_entity_limit: int,
+    ) -> list[SearchHit]:
+        """按实体分别取有界段落，避免高频实体扫描整张倒排表。"""
+
+        ...
+
+    def search_graph_nodes(
+        self,
+        index_names: Sequence[str],
+        doc_type: str,
+        filters: dict[str, Any],
+        limit: int,
+    ) -> list[SearchDocument]:
+        """按来源字段读取至多 limit 个关联节点。"""
+
+        ...
+
     def scan_documents(
         self,
         index_names: Sequence[str],
