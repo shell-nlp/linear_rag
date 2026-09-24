@@ -24,6 +24,15 @@ class LinearRAGConfig(BaseModel):
     entity_expansion_max_entities: int = 20
     entity_expansion_top_k: int = 50
     neighbor_expansion_enabled: bool = True
+    max_iterations: int = 3
+    top_k_sentence: int = 1
+    passage_ratio: float = 1.5
+    passage_node_weight: float = 0.05
+    damping: float = 0.5
+    iteration_threshold: float = 0.5
+    linear_local_candidates: int = 200
+    linear_max_nodes: int = 100000
+    linear_embedding_batch_size: int = 128
 
 
 class Settings(BaseSettings):
@@ -86,6 +95,25 @@ class Settings(BaseSettings):
         True,
         validation_alias="NEIGHBOR_EXPANSION_ENABLED",
     )
+    max_iterations: int = Field(3, ge=1, validation_alias="LINEAR_MAX_ITERATIONS")
+    top_k_sentence: int = Field(1, ge=1, validation_alias="LINEAR_TOP_K_SENTENCE")
+    passage_ratio: float = Field(1.5, ge=0, validation_alias="LINEAR_PASSAGE_RATIO")
+    passage_node_weight: float = Field(
+        0.05, ge=0, validation_alias="LINEAR_PASSAGE_NODE_WEIGHT"
+    )
+    damping: float = Field(0.5, gt=0, lt=1, validation_alias="LINEAR_DAMPING")
+    iteration_threshold: float = Field(
+        0.5, ge=0, validation_alias="LINEAR_ITERATION_THRESHOLD"
+    )
+    linear_local_candidates: int = Field(
+        200, ge=1, validation_alias="LINEAR_LOCAL_CANDIDATES"
+    )
+    linear_max_nodes: int = Field(
+        100000, ge=1, validation_alias="LINEAR_MAX_NODES"
+    )
+    linear_embedding_batch_size: int = Field(
+        128, ge=1, validation_alias="LINEAR_EMBEDDING_BATCH_SIZE"
+    )
     max_upload_bytes: int = Field(
         100 * 1024 * 1024,
         ge=1,
@@ -137,6 +165,15 @@ class Settings(BaseSettings):
             entity_expansion_max_entities=self.entity_expansion_max_entities,
             entity_expansion_top_k=self.entity_expansion_top_k,
             neighbor_expansion_enabled=self.neighbor_expansion_enabled,
+            max_iterations=self.max_iterations,
+            top_k_sentence=self.top_k_sentence,
+            passage_ratio=self.passage_ratio,
+            passage_node_weight=self.passage_node_weight,
+            damping=self.damping,
+            iteration_threshold=self.iteration_threshold,
+            linear_local_candidates=self.linear_local_candidates,
+            linear_max_nodes=self.linear_max_nodes,
+            linear_embedding_batch_size=self.linear_embedding_batch_size,
         )
 
 

@@ -13,7 +13,7 @@ class RetrievePayload(BaseModel):
     top_k: int = 3
     search_mode: SearchMode = Field(
         default=SearchMode.VECTOR,
-        description="检索模式：vector、bm25 或 hybrid",
+        description="检索模式：vector、bm25、hybrid、linear 或 linear_local",
     )
 
 

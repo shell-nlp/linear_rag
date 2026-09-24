@@ -11,34 +11,22 @@ services:
     # 对应 --restart always
     restart: always
     shm_size: "1gb"
+    # 让容器可以通过 host.docker.internal 访问宿主机上的 ES 或模型服务。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - 12125:12125
-    # 环境变量配置
+    # 模型、Embedding、对象存储和 ES 配置统一读取项目根目录 .env。
+    env_file:
+      - .env
+    # 仅覆盖容器内路径和运行参数，避免把宿主机的 localhost 配置带入容器。
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1
-      # LLM 配置
-      - LLM_API_KEY=sk
-      - LLM_BASE_URL=http://localhost:8082/v1
-      - LLM_MODEL_NAME=qwen3
-      # 嵌入模型配置
-      - EMBEDDING_API_URL=http://localhost:8082/v1/embeddings
-      - EMBEDDING_MODEL_NAME=qwen3-embedding
-      - EMBEDDING_DIM=1024
-      - SPACY_MODEL=zh_core_web_md
-      - MAX_WORKERS=16
       - SPACY_N_PROCESS=1
-      - MAX_UPLOAD_BYTES=104857600
-      # 对象存储配置，改为 minio 时同时填写三个 MINIO 参数
-      - OBJECT_STORAGE_PROVIDER=local
       - LOCAL_STORAGE_ROOT=/app/.data/object-storage
-      - MINIO_ENDPOINT_URL=
-      - MINIO_ACCESS_KEY=
-      - MINIO_SECRET_KEY=
-      # Elasticsearch 配置
-      - es_url=http://localhost:9200
-      - es_user=elastic
-      - es_password=elastic@2024
+      # 若 ES 运行在宿主机，请把 .env 的 es_url 改为
+      # http://host.docker.internal:9200；远程服务则直接填写远程地址。
     volumes:
       - ./.data/object-storage:/app/.data/object-storage
     command: ["python", "main.py"]

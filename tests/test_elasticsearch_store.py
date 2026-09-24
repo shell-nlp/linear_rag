@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from src.common.search_store.elasticsearch import (
     ElasticsearchSearchStore,
@@ -82,6 +83,8 @@ class ElasticsearchStoreTests(unittest.TestCase):
             "integer",
         )
         self.assertEqual(properties["previous_passage_id"]["type"], "keyword")
+        self.assertEqual(properties["entity_id"]["type"], "keyword")
+        self.assertEqual(properties["passage_id"]["type"], "keyword")
 
     def test_filter_only_search_uses_constant_score(self):
         """实体扩展应只按 entity_ids 过滤，不附加原始文本条件。"""
@@ -112,6 +115,29 @@ class ElasticsearchStoreTests(unittest.TestCase):
 
         properties = client.indices.mapping["properties"]
         self.assertEqual(properties["entity_ids"]["type"], "keyword")
+
+    def test_graph_scan_filters_and_rejects_truncation(self):
+        """扫描图节点必须带类型过滤，超过上限则报错。"""
+
+        client = RecordingElasticsearchClient()
+        store = ElasticsearchSearchStore(client)
+        hits = [
+            {"_id": f"entity-{index}", "_source": {
+                "hash_id": f"entity-{index}", "text": "甲", "type": "entity"
+            }}
+            for index in range(2)
+        ]
+        with patch(
+            "src.common.search_store.elasticsearch.helpers.scan",
+            return_value=iter(hits),
+        ) as scan:
+            with self.assertRaisesRegex(ValueError, "LINEAR_MAX_NODES"):
+                store.scan_documents(
+                    ["kb"], ["entity"], {"entity_id": ["a"]}, max_documents=1
+                )
+        query = scan.call_args.kwargs["query"]["query"]["bool"]["filter"]
+        self.assertIn({"terms": {"type": ["entity"]}}, query)
+        self.assertIn("entity_id", str(query))
 
 
 if __name__ == "__main__":

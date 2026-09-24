@@ -21,7 +21,7 @@ class DocumentParser(Protocol):
 
 
 class EntityExtractor(Protocol):
-    """段落实体识别端口，用于替换 spaCy、LLM 或其它 NER 实现。"""
+    """段落和问题的实体识别端口，用于替换具体 NER 实现。"""
 
     def extract_passage_entities(
         self,
@@ -29,5 +29,19 @@ class EntityExtractor(Protocol):
         max_workers: int,
     ) -> dict[str, list[str]]:
         """批量提取段落中的实体。"""
+
+        ...
+
+    def extract_graph_entities(
+        self,
+        hash_id_to_passage: Mapping[str, str],
+        max_workers: int,
+    ) -> tuple[dict[str, list[str]], dict[str, dict[str, list[str]]]]:
+        """返回段落实体及按段落 ID 分组的句子实体关联。"""
+
+        ...
+
+    def extract_question_entities(self, question: str) -> list[str]:
+        """提取问题中的种子实体。"""
 
         ...

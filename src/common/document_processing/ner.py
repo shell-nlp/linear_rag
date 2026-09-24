@@ -58,3 +58,35 @@ class SpacyNER:
         """实现 EntityExtractor 端口的段落实体提取方法。"""
 
         return self.batch_ner(hash_id_to_passage, max_workers)
+
+    def extract_graph_entities(self, hash_id_to_passage, max_workers):
+        """抽取段落与句子的实体关联，保留重复提及用于边权。"""
+
+        keys = list(hash_id_to_passage)
+        requested_workers = int(os.getenv("SPACY_N_PROCESS", "1"))
+        worker_count = max(
+            1,
+            min(max_workers, requested_workers, len(keys)),
+        )
+        docs = self.spacy_model.pipe(
+            [hash_id_to_passage[key] for key in keys],
+            batch_size=max(1, len(keys) // worker_count),
+            n_process=worker_count,
+        )
+        passages = {}
+        sentences = {}
+        for passage_id, doc in zip(keys, docs):
+            passage_entities, sentence_entities = self.extract_entities_sentences(
+                doc, passage_id
+            )
+            passages.update(passage_entities)
+            sentences[passage_id] = dict(sentence_entities)
+        return passages, sentences
+
+    def extract_question_entities(self, question: str) -> list[str]:
+        """与索引阶段采用一致的 NER 过滤规则。"""
+
+        return [
+            entity.text for entity in self.spacy_model(question).ents
+            if entity.label_ not in {"ORDINAL", "CARDINAL"}
+        ]

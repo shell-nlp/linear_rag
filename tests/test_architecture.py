@@ -34,6 +34,19 @@ class FakeEntityExtractor:
             for passage_id, text in hash_id_to_passage.items()
         }
 
+    def extract_graph_entities(self, hash_id_to_passage, max_workers):
+        """保留测试段落的句子归属和实体重复次数。"""
+
+        passages = self.extract_passage_entities(hash_id_to_passage, max_workers)
+        return passages, {
+            passage_id: {text: list(dict.fromkeys(passages[passage_id]))}
+            for passage_id, text in hash_id_to_passage.items()
+            if passages[passage_id]
+        }
+
+    def extract_question_entities(self, question):
+        return ["水库"] if "水库" in question else []
+
 
 class FakeSearchStore:
     """测试用搜索库，覆盖统一检索和关系字段过滤。"""
@@ -106,6 +119,24 @@ class FakeSearchStore:
             hits.append(SearchHit(id=document.id, score=1.0, document=document))
         return hits[: query.top_k]
 
+    def scan_documents(
+        self, index_names, doc_types, filters=None, max_documents=None
+    ):
+        """测试图节点扫描及结构化过滤语义。"""
+
+        filters = filters or {}
+        result = [
+            document for document in self.documents.values()
+            if document.doc_type in doc_types and all(
+                document.metadata.get(key) in value
+                if isinstance(value, list) else document.metadata.get(key) == value
+                for key, value in filters.items()
+            )
+        ]
+        if max_documents is not None and len(result) > max_documents:
+            raise ValueError("图节点超过 LINEAR_MAX_NODES")
+        return result
+
 
 def build_config():
     """构造测试用运行时配置。"""
@@ -117,6 +148,7 @@ def build_config():
         entity_expansion_max_entities=20,
         entity_expansion_top_k=50,
         neighbor_expansion_enabled=True,
+        linear_embedding_batch_size=128,
     )
 
 
@@ -143,7 +175,7 @@ class ArchitectureTests(unittest.TestCase):
         result = service.index(passages, "kb_test")
 
         documents = sorted(
-            search_store.documents.values(),
+            (item for item in search_store.documents.values() if item.doc_type == "passage"),
             key=lambda item: item.metadata["segment_id"],
         )
         entity_counts = {
@@ -154,6 +186,10 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(entity_counts["水库"], 2)
         self.assertEqual(documents[0].metadata["next_passage_id"], documents[1].id)
         self.assertEqual(documents[1].metadata["previous_passage_id"], documents[0].id)
+        self.assertEqual(
+            {item.doc_type for item in search_store.documents.values()},
+            {"passage", "sentence", "entity"},
+        )
 
     def test_identical_text_in_different_files_has_distinct_ids(self):
         """相同文本必须按文件隔离。"""
@@ -321,7 +357,7 @@ class ArchitectureTests(unittest.TestCase):
 
         self.assertEqual(
             set(service.call_args.kwargs),
-            {"config", "search_store", "embedding_provider"},
+            {"config", "search_store", "embedding_provider", "linear_retriever"},
         )
 
     def test_index_endpoint_uses_required_multipart_fields(self):

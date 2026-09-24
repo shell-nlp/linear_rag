@@ -1444,7 +1444,7 @@
                 method: 'POST',
                 path: '/retrieve',
                 body: 'json',
-                description: '按向量、BM25 或混合模式执行知识库检索，并融合实体和相邻段落扩展。',
+                description: '快速模式使用向量/BM25/RRF；linear 运行全图 PPR，linear_local 在 ES 候选子图上运行近似 PPR。',
                 fields: [
                     { name: 'questions', label: '问题', type: 'textarea', required: true, placeholder: '输入检索问题' },
                     { name: 'index_names', label: '索引名称', type: 'text', required: true, transform: 'list', placeholder: 'demo, demo-v2' },
@@ -1458,7 +1458,9 @@
                         options: [
                             { value: 'vector', label: 'vector' },
                             { value: 'bm25', label: 'bm25' },
-                            { value: 'hybrid', label: 'hybrid' }
+                            { value: 'hybrid', label: 'hybrid' },
+                            { value: 'linear', label: 'linear · 全图 PPR' },
+                            { value: 'linear_local', label: 'linear_local · 局部 PPR' }
                         ]
                     }
                 ]

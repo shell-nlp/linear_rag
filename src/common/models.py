@@ -6,11 +6,13 @@ from typing import Any
 
 
 class SearchMode(str, Enum):
-    """检索模式：向量、BM25 或两者融合。"""
+    """检索模式：官方图算法与工程快速检索。"""
 
     VECTOR = "vector"
     BM25 = "bm25"
     HYBRID = "hybrid"
+    LINEAR = "linear"
+    LINEAR_LOCAL = "linear_local"
 
 
 @dataclass(slots=True)

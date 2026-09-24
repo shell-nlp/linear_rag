@@ -116,7 +116,7 @@ class FileIndexingWorkflow:
         )
         index_attempted = False
         storage_created = False
-        passage_ids: list[str] = []
+        node_ids: list[str] = []
         try:
             passages = self.passage_resolver(
                 self.process_pool,
@@ -132,7 +132,7 @@ class FileIndexingWorkflow:
             documents, unique_entity_ids = self.indexing_service.prepare_documents(
                 passages
             )
-            passage_ids = [document.id for document in documents]
+            node_ids = [document.id for document in documents]
             storage_future.result()
             storage_created = True
             index_attempted = True
@@ -160,7 +160,7 @@ class FileIndexingWorkflow:
                 storage_created = False
             self._rollback(
                 index_name=normalized_kb_name,
-                passage_ids=passage_ids,
+                node_ids=node_ids,
                 bucket_name=normalized_bucket,
                 object_key=normalized_key,
                 index_attempted=index_attempted,
@@ -171,7 +171,7 @@ class FileIndexingWorkflow:
     def _rollback(
         self,
         index_name: str,
-        passage_ids: list[str],
+        node_ids: list[str],
         bucket_name: str,
         object_key: str,
         index_attempted: bool,
@@ -182,7 +182,7 @@ class FileIndexingWorkflow:
         rollback_errors = []
         if index_attempted:
             try:
-                self.indexing_service.delete_passages(index_name, passage_ids)
+                self.indexing_service.delete_nodes(index_name, node_ids)
             except Exception as exc:
                 rollback_errors.append(f"索引回滚失败: {exc}")
         if storage_created:

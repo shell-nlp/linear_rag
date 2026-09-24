@@ -44,6 +44,8 @@ FILTER_FIELD_ALIASES = {
 
 # 关系扩展字段既写在文档顶层，也保留在 metadata 中供统一模型还原。
 RELATION_FIELD_MAPPINGS = {
+    "entity_id": {"type": "keyword"},
+    "passage_id": {"type": "keyword"},
     "entity_ids": {"type": "keyword"},
     "entity_names": {"type": "keyword"},
     "entities": {
@@ -280,11 +282,41 @@ class ElasticsearchSearchStore:
 
         if query.filter_only:
             return self._filter_search(query)
+        if query.mode in {SearchMode.LINEAR, SearchMode.LINEAR_LOCAL}:
+            raise ValueError("linear 图算法由检索服务执行，搜索库只提供节点和候选查询")
         if query.mode == SearchMode.VECTOR:
             return self._vector_search(query)
         if query.mode == SearchMode.BM25:
             return self._bm25_search(query)
         return self._hybrid_search(query)
+
+    def scan_documents(
+        self,
+        index_names: Sequence[str],
+        doc_types: Sequence[str],
+        filters: dict[str, Any] | None = None,
+        max_documents: int | None = None,
+    ) -> list[SearchDocument]:
+        """使用 ES scroll 扫描图节点，超限显式报错而非静默截断。"""
+
+        indices = self._existing_indices(index_names)
+        if not indices:
+            return []
+        clauses = [{"terms": {"type": list(doc_types)}}]
+        extra = self._build_filter_query(filters)
+        if extra:
+            clauses.append(extra)
+        documents = []
+        for hit in helpers.scan(
+            self.client,
+            index=indices,
+            query={"query": {"bool": {"filter": clauses}}},
+            scroll="2m",
+        ):
+            documents.append(self._hit_to_document(hit))
+            if max_documents is not None and len(documents) > max_documents:
+                raise ValueError("图节点超过 LINEAR_MAX_NODES")
+        return documents
 
     def _filter_search(self, query: SearchQuery) -> list[SearchHit]:
         """只按结构化字段召回，用于实体和相邻关系扩展。"""

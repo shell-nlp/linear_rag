@@ -58,16 +58,93 @@ class IndexingService:
             return [], set()
 
         passage_texts = {document.id: document.text for document in documents}
-        passage_entities = self.entity_extractor.extract_passage_entities(
-            passage_texts,
-            self.config.max_workers,
+        passage_entities, sentence_entities = (
+            self.entity_extractor.extract_graph_entities(
+                passage_texts, self.config.max_workers
+            )
         )
         unique_entity_ids = self._attach_entity_metadata(
             documents,
             passage_entities,
         )
         self._attach_embeddings(documents)
+        documents.extend(self._build_graph_documents(documents, sentence_entities))
         return documents, unique_entity_ids
+
+    def _build_graph_documents(
+        self,
+        passages: list[SearchDocument],
+        sentence_entities: Mapping[str, Mapping[str, list[str]]],
+    ) -> list[SearchDocument]:
+        """实体和句子节点随所属文件一起写入，删除时无需全局引用计数。"""
+
+        if not sentence_entities:
+            return []
+        grouped: dict[str, list[SearchDocument]] = defaultdict(list)
+        for passage in passages:
+            grouped[self._source_key(passage.metadata)].append(passage)
+        graph_documents = []
+        for file_key, file_passages in grouped.items():
+            source = file_passages[0].metadata
+            names = sorted({
+                item["name"]
+                for passage in file_passages
+                for item in passage.metadata["entities"]
+            })
+            # 句子按所属段落建立 ID；相同句子在不同文件中不会相互删除。
+            sentence_items = []
+            for passage in file_passages:
+                for sentence, entities in sentence_entities.get(passage.id, {}).items():
+                    sentence_items.append((passage, sentence, entities))
+                    names.extend(entities)
+            names = sorted(set(names))
+            texts = [*names, *(text for _, text, _ in sentence_items)]
+            if not texts:
+                continue
+            vectors = self.embedding_provider.encode(
+                texts,
+                # 图节点批次独立限制，避免实体和句子过多时单次请求过大。
+                batch_size=min(
+                    self.config.batch_size,
+                    self.config.linear_embedding_batch_size,
+                ),
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            shared = {
+                "file_id": source.get("file_id"),
+                "file_path": source.get("file_path"),
+                "bucket_name": source.get("bucket_name"),
+            }
+            for index, name in enumerate(names):
+                graph_documents.append(SearchDocument(
+                    id=compute_mdhash_id(f"{file_key}:{name}", prefix="entity-node-"),
+                    text=name,
+                    vector=normalize_vector(vectors[index]),
+                    doc_type="entity",
+                    metadata={
+                        **shared,
+                        "entity_id": compute_mdhash_id(name.casefold(), prefix="entity-"),
+                    },
+                ))
+            for index, (passage, text, entities) in enumerate(sentence_items):
+                graph_documents.append(SearchDocument(
+                    id=compute_mdhash_id(
+                        f"{passage.id}:{text}", prefix="sentence-"
+                    ),
+                    text=text,
+                    vector=normalize_vector(vectors[len(names) + index]),
+                    doc_type="sentence",
+                    metadata={
+                        **shared,
+                        "passage_id": passage.id,
+                        "entity_ids": [
+                            compute_mdhash_id(name.casefold(), prefix="entity-")
+                            for name in entities
+                        ],
+                    },
+                ))
+        return graph_documents
 
     def write_documents(
         self,
@@ -86,7 +163,7 @@ class IndexingService:
         )
         return {
             "status": "success",
-            "new_passages": write_result.success,
+            "new_passages": sum(document.doc_type == "passage" for document in documents),
             "new_entities": len(unique_entity_ids),
             "failed_passages": write_result.failed,
         }
@@ -189,13 +266,13 @@ class IndexingService:
             document.metadata["entity_names"] = [item["name"] for item in entities]
         return unique_entity_ids
 
-    def delete_passages(self, index_name: str, passage_ids: list[str]) -> None:
-        """按本次生成的段落 ID 精确删除索引文档。"""
+    def delete_nodes(self, index_name: str, node_ids: list[str]) -> None:
+        """按本次生成的段落、句子和实体节点 ID 精确回滚。"""
 
-        if passage_ids:
+        if node_ids:
             self.search_store.delete_documents_by_ids(
                 index_name=index_name,
-                ids=passage_ids,
+                ids=node_ids,
                 refresh=True,
             )
 
@@ -204,7 +281,10 @@ class IndexingService:
 
         embeddings = self.embedding_provider.encode(
             [document.text for document in documents],
-            batch_size=self.config.batch_size,
+            batch_size=min(
+                self.config.batch_size,
+                self.config.linear_embedding_batch_size,
+            ),
             normalize_embeddings=True,
             show_progress_bar=False,
         )

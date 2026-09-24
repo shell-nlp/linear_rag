@@ -81,3 +81,14 @@ class SearchStore(Protocol):
         """执行统一检索请求。"""
 
         ...
+
+    def scan_documents(
+        self,
+        index_names: Sequence[str],
+        doc_types: Sequence[str],
+        filters: dict[str, Any] | None = None,
+        max_documents: int | None = None,
+    ) -> list[SearchDocument]:
+        """按类型及关联字段扫描节点，并在超过上限时拒绝截断。"""
+
+        ...

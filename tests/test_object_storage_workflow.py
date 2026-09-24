@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from src.common.object_storage import create_object_storage
 from src.common.object_storage.base import normalize_object_location
 from src.common.object_storage.local import LocalObjectStorage
-from src.indexing.workflow import FileIndexingWorkflow
+from src.indexing.workflow import FileIndexingWorkflow, resolve_uploaded_passages
 
 
 class FakeObjectStorage:
@@ -56,7 +56,7 @@ class FakeIndexingService:
             raise OSError("index failed")
         return {"new_passages": 1, "new_entities": 0, "failed_passages": 0}
 
-    def delete_passages(self, index_name, passage_ids):
+    def delete_nodes(self, index_name, passage_ids):
         self.deleted_passages.append((index_name, list(passage_ids)))
 
 
@@ -227,6 +227,34 @@ class ObjectStorageWorkflowTests(unittest.TestCase):
 
         self.assertFalse(storage.put_started.is_set())
         self.assertEqual(indexing.write_calls, 0)
+
+    def test_pdf_parsing_and_chunking_use_process_pool(self):
+        """CPU 密集型解析切片必须提交给进程池，而不是主进程直接执行。"""
+
+        class Future:
+            def result(self):
+                return {"text": ["切片结果"]}
+
+        class Pool:
+            def __init__(self):
+                self.calls = []
+
+            def submit(self, *args):
+                self.calls.append(args)
+                return Future()
+
+        pool = Pool()
+        result = resolve_uploaded_passages(
+            pool,
+            b"pdf",
+            "docs",
+            "reports/a.pdf",
+            "file-1",
+        )
+
+        self.assertEqual(result["text"], ["切片结果"])
+        self.assertEqual(len(pool.calls), 1)
+        self.assertEqual(pool.calls[0][1:], (b"pdf", "docs", "reports/a.pdf", "file-1"))
 
 
 if __name__ == "__main__":

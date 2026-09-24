@@ -7,17 +7,22 @@ from src.common.models import SearchHit, SearchMode, SearchQuery
 from src.common.model_providers.base import EmbeddingProvider
 from src.common.search_store.base import SearchStore
 from src.common.vector_utils import normalize_vector
+from src.retrieval.linear import LinearRetriever
 
 
 class RetrievalService:
     """执行向量、BM25、混合检索以及基于 ES 字段的实体扩展。"""
 
-    def __init__(self, config, embedding_provider, search_store: SearchStore):
+    def __init__(
+        self, config, embedding_provider, search_store: SearchStore,
+        linear_retriever: LinearRetriever | None = None,
+    ):
         """注入统一搜索端口和向量模型。"""
 
         self.config = config
         self.embedding_provider: EmbeddingProvider = embedding_provider
         self.search_store = search_store
+        self.linear_retriever = linear_retriever
 
     def retrieve(
         self,
@@ -28,6 +33,13 @@ class RetrievalService:
     ) -> list[dict[str, Any]]:
         """按指定模式主召回，再融合实体关联段落和相邻段落。"""
 
+        if search_mode in {SearchMode.LINEAR, SearchMode.LINEAR_LOCAL}:
+            if self.linear_retriever is None:
+                raise RuntimeError("LinearRetriever 未初始化")
+            return self.linear_retriever.retrieve(
+                question, index_names, top_k,
+                local=search_mode == SearchMode.LINEAR_LOCAL,
+            )
         query_vector = self._encode_question(question, search_mode)
         primary_hits = self._search_passages(
             question,

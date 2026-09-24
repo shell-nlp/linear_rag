@@ -12,6 +12,7 @@ from src.indexing.service import IndexingService
 from src.indexing.workflow import FileIndexingWorkflow
 from src.knowledge_bases.service import KnowledgeBaseService
 from src.retrieval.service import RetrievalService
+from src.retrieval.linear import LinearRetriever
 from src.settings import get_settings
 from src.utils import get_es_client, setup_logging
 
@@ -62,6 +63,12 @@ def build_application_state() -> ApplicationState:
         config=config,
         search_store=search_store,
         embedding_provider=state.embedding_provider,
+        linear_retriever=LinearRetriever(
+            config=config,
+            embedding_provider=state.embedding_provider,
+            entity_extractor=entity_extractor,
+            search_store=search_store,
+        ),
     )
     return state
 
