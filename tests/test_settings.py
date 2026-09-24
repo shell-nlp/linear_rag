@@ -2,13 +2,22 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from src.settings import Settings
+from src.settings import ENV_FILE, Settings
 
 
 class SettingsTests(unittest.TestCase):
     """验证 pydantic-settings 能从环境变量读取配置。"""
+
+    def test_env_file_points_to_project_root(self):
+        """配置文件必须读取项目根目录下的 .env，而不是父目录。"""
+
+        self.assertEqual(
+            Path(ENV_FILE).resolve(),
+            Path(__file__).resolve().parents[1] / ".env",
+        )
 
     def test_environment_aliases_are_loaded(self):
         """兼容旧变量名，同时统一为 Settings 字段。"""

@@ -19,10 +19,10 @@ services:
       - PYTHONUNBUFFERED=1
       # LLM 配置
       - LLM_API_KEY=sk
-      - LLM_BASE_URL=http://192.168.102.19:8082/v1
+      - LLM_BASE_URL=http://localhost:8082/v1
       - LLM_MODEL_NAME=qwen3
       # 嵌入模型配置
-      - EMBEDDING_API_URL=http://192.168.102.19:8082/v1/embeddings
+      - EMBEDDING_API_URL=http://localhost:8082/v1/embeddings
       - EMBEDDING_MODEL_NAME=qwen3-embedding
       - EMBEDDING_DIM=1024
       - SPACY_MODEL=zh_core_web_md
@@ -36,7 +36,7 @@ services:
       - MINIO_ACCESS_KEY=
       - MINIO_SECRET_KEY=
       # Elasticsearch 配置
-      - es_url=http://192.168.102.19:9200
+      - es_url=http://localhost:9200
       - es_user=elastic
       - es_password=elastic@2024
     volumes:

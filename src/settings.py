@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from pathlib import Path
 from typing import Literal
+
+from dotenv import find_dotenv
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+# 自动从当前源码目录向上查找 .env；Docker 仅注入环境变量时允许文件不存在。
+ENV_FILE = find_dotenv(filename=".env", raise_error_if_not_found=False)
 
 
 class LinearRAGConfig(BaseModel):
@@ -28,7 +30,7 @@ class Settings(BaseSettings):
     """项目环境配置，统一从环境变量或 .env 读取。"""
 
     model_config = SettingsConfigDict(
-        env_file=str(ENV_FILE),
+        env_file=ENV_FILE or None,
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -37,12 +39,12 @@ class Settings(BaseSettings):
     # 大模型与向量模型
     llm_api_key: str = Field("sk", validation_alias="LLM_API_KEY")
     llm_base_url: str = Field(
-        "http://192.168.102.19:8082/v1",
+        "http://localhost:8082/v1",
         validation_alias="LLM_BASE_URL",
     )
     llm_model_name: str = Field("qwen3", validation_alias="LLM_MODEL_NAME")
     embedding_api_url: str = Field(
-        "http://192.168.102.19:8082/v1/embeddings",
+        "http://localhost:8082/v1/embeddings",
         validation_alias="EMBEDDING_API_URL",
     )
     embedding_model_name: str = Field(
@@ -115,7 +117,7 @@ class Settings(BaseSettings):
 
     # Elasticsearch
     es_url: str = Field(
-        "http://192.168.102.19:9200",
+        "http://localhost:9200",
         validation_alias="es_url",
     )
     es_user: str = Field("elastic", validation_alias="es_user")
