@@ -279,3 +279,5 @@ src/frontend/temp
 
 results/*
 local_models/*
+evals/linearrag_v0/.v0-source/
+data/

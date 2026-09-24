@@ -59,6 +59,28 @@ PPR；`linear_local` 合并 ES 向量候选和问题实体关联段落，再读�
 作者仓库和论文的实验指标不能直接套用到本项目，检索效果需用相同语料与
 评估口径单独验证。
 
+### 同口径检索结果
+
+使用固定 PDF 解析出的 90 个段落和 12 个弱标注问题，在同一真实 Embedding、
+Elasticsearch、Neo4j/GDS 环境中对比纯向量、Hybrid-RRF、当前 `linear_local`
+与实际 `v0`：
+
+| 路径 | Recall@1 | Recall@3 | Recall@5 | 查询中位耗时 |
+| --- | ---: | ---: | ---: | ---: |
+| ES 纯向量 | 4/12 | 8/12 | 8/12 | 0.060 秒 |
+| ES 向量 + BM25 + RRF | 6/12 | 7/12 | 8/12 | 0.136 秒 |
+| 当前 `linear_local` | 8/12 | 10/12 | 10/12 | 1.983 秒 |
+| 实际 `v0` | 6/12 | 8/12 | 9/12 | 2.566 秒 |
+
+这里的纯向量和 Hybrid-RRF 都是主召回基线，不追加实体扩展和相邻段落融合；
+Hybrid-RRF 指 ES 分别执行向量与 BM25 后，再按排名执行 RRF。同次运行中，当前版本
+临时索引约 11.32 秒，`v0` 约 12.74 秒。Recall@5 让 `v0`
+额外命中“内蒙古”目标段落（第 4 位）；当前版本未命中的“保密合同”和“考勤制度”
+两题仍不在前 5，因此 Recall@5 与 Recall@3 相同。Hybrid-RRF 单独命中“考勤制度”
+第 4 位，说明快速路径和局部图路径仍有互补空间。该实验是问题显式包含目标实体的
+弱标注评测，只用于算法和工程路径对照，不能替代人工标注与生产规模测试。完整环境、
+逐题排名和复跑命令见 [评测报告](docs/comparison-v0-local.md)。
+
 ## 架构
 
 ```text
@@ -334,7 +356,7 @@ uv run python -B -m unittest discover -s tests -p test_real_pdf_integration.py -
 局部图检索压测可直接运行：
 
 ```powershell
-uv run python -B scripts/benchmark_linear_local.py `
+uv run python -B evals/linearrag_local/benchmark_linear_local.py `
   --passages 1000 5000 20000 50000 `
   --candidates 200 1000 2000 `
   --queries 5
@@ -342,6 +364,9 @@ uv run python -B scripts/benchmark_linear_local.py `
 
 脚本使用固定向量和固定 NER，只测量 ES 候选召回、实体/句子扫描和局部 PPR，
 避免远端模型延迟干扰；每个场景使用临时索引并在结束时删除。
+
+与 `v0` 的真实 Neo4j/GDS 同口径对比见 [评测报告](docs/comparison-v0-local.md)。
+评测代码和固定数据集保留在 `evals/`；该结果仍不能替代生产规模与人工标注评测。
 
 ## Docker
 

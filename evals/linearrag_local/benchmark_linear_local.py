@@ -9,8 +9,8 @@ from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 
-# 支持直接执行 scripts/benchmark_linear_local.py 时找到项目根目录。
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# 支持直接执行评测脚本时找到项目根目录。
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 

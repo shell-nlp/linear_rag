@@ -1,0 +1,23 @@
+{
+  "passages": {
+    "text": [
+      "密云水库开展水位监测和渗流监测。",
+      "密云水库监测设施包括测压管和量水堰。"
+    ],
+    "file_name": ["smoke.pdf", "smoke.pdf"],
+    "file_id": ["linearrag-smoke", "linearrag-smoke"],
+    "segment_id": [1, 2],
+    "file_path": ["smoke.pdf", "smoke.pdf"],
+    "bucket_name": ["linearrag-eval", "linearrag-eval"],
+    "pages_number": [1, 1],
+    "ori_text": [
+      "密云水库开展水位监测和渗流监测。",
+      "密云水库监测设施包括测压管和量水堰。"
+    ],
+    "content_table": [[], []],
+    "content_image": [[], []]
+  },
+  "questions": [
+    "密云水库有哪些监测设施？"
+  ]
+}
