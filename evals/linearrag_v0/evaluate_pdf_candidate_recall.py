@@ -1,3 +1,5 @@
+"""在真实 PDF 上比较向量候选、v0 风格排序与 linear_local 召回。"""
+
 from __future__ import annotations
 
 import argparse
@@ -218,7 +220,7 @@ def main():
             results["v0_style"].append(
                 v0_style_rank(
                     retriever, question, v0_hits, entity_nodes, all_passages
-                )[:5]
+                )[:15]
             )
             seed_names = ner.extract_question_entities(question)
             candidate_passages, _, _, seeds = retriever._load_local_graph(
@@ -228,7 +230,7 @@ def main():
             )
             merged_ids = [passage.id for passage in candidate_passages]
             start = time.perf_counter()
-            local_hits = retriever.retrieve(question, [index_name], 5, local=True)
+            local_hits = retriever.retrieve(question, [index_name], 15, local=True)
             timings["local"].append(time.perf_counter() - start)
             local_ids = [hit["hash_id"] for hit in local_hits]
             results["vector"].append(vector_ids)
@@ -242,7 +244,7 @@ def main():
                 f"local_rank={local_ids.index(target) + 1 if target in local_ids else '-'}",
                 flush=True,
             )
-        for top_k in (1, 3, 5):
+        for top_k in (1, 3, 5, 8, 10, 15):
             vector_recall = sum(
                 target in hits[:top_k] for (_, target, _), hits in zip(cases, results["vector"])
             ) / len(cases)

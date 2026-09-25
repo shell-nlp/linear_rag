@@ -1,3 +1,5 @@
+"""在隔离环境中运行 v0 tag 的真实 ES、Neo4j 和 GDS 检索路径。"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,6 +10,28 @@ import time
 from pathlib import Path
 
 from dotenv import dotenv_values
+
+
+class RetryingEmbedding:
+    """为旧版 v0 的 Embedding 请求增加有限重试，避免长评测被瞬时断连中断。"""
+
+    def __init__(self, delegate, attempts: int = 3):
+        self.delegate = delegate
+        self.attempts = attempts
+
+    def __getattr__(self, name):
+        return getattr(self.delegate, name)
+
+    def encode(self, *args, **kwargs):
+        """保持原调用签名，仅在网络异常时指数退避重试。"""
+
+        for attempt in range(self.attempts):
+            try:
+                return self.delegate.encode(*args, **kwargs)
+            except Exception:
+                if attempt == self.attempts - 1:
+                    raise
+                time.sleep(2 ** attempt)
 
 
 def main():
@@ -49,8 +73,10 @@ def main():
         "neo4j",
     )
     # 原客户端只接收 URL 和模型名；两版使用同一个真实 Embedding 服务。
-    embedding = LocalOpenAIEmbeddingModel(
-        values["EMBEDDING_API_URL"], values["EMBEDDING_MODEL_NAME"]
+    embedding = RetryingEmbedding(
+        LocalOpenAIEmbeddingModel(
+            values["EMBEDDING_API_URL"], values["EMBEDDING_MODEL_NAME"]
+        )
     )
     embedding.headers["Authorization"] = f"Bearer {values['LLM_API_KEY']}"
     rag = LinearRAG(
@@ -82,7 +108,7 @@ def main():
             questions = questions[: args.max_cases]
         for question in questions:
             started = time.perf_counter()
-            # 返回深度必须与当前版本一致，否则 Recall@5 会被 v0 的 top_k=3 人为截断。
+            # 返回深度必须与当前版本一致，否则 Recall@15 会被 v0 的 top_k 人为截断。
             result = rag.retrieve(question, [args.index_name], top_k=args.top_k)
             print(
                 json.dumps({

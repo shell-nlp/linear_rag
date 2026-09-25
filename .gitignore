@@ -281,3 +281,9 @@ results/*
 local_models/*
 evals/linearrag_v0/.v0-source/
 data/
+# 固定检索评测资产位于内部评测目录，需要随私有仓库保留。
+!evals/linearrag_v0/data/
+!evals/linearrag_v0/data/document.pdf
+!evals/linearrag_v0/data/document_eval.json
+!evals/linearrag_v0/data/document_eval_large.json
+!evals/linearrag_v0/data/document_eval_multihop.json

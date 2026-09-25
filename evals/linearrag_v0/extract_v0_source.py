@@ -1,3 +1,5 @@
+"""从当前仓库的 v0 tag 抽取隔离运行所需源码。"""
+
 from __future__ import annotations
 
 import argparse

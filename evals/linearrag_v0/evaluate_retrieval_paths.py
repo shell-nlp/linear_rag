@@ -1,3 +1,5 @@
+"""按统一语料、模型和 top_k 比较纯向量、Hybrid-RRF、linear_local 与实际 v0。"""
+
 from __future__ import annotations
 
 import argparse
@@ -26,11 +28,38 @@ from src.settings import get_settings
 from src.utils import get_es_client
 
 
-def recall(rankings: list[list[str]], cases: list[dict], top_k: int) -> float:
-    """按目标段落文本计算 Recall@K。"""
+def case_targets(case: dict) -> list[str]:
+    """兼容单目标和多跳多目标两种载荷结构。"""
+
+    return case.get("target_texts") or [case["target_text"]]
+
+
+def any_recall(rankings: list[list[str]], cases: list[dict], top_k: int) -> float:
+    """计算至少命中一个目标段落的 Any@K。"""
 
     return sum(
-        case["target_text"] in ranking[:top_k]
+        bool(set(case_targets(case)) & set(ranking[:top_k]))
+        for case, ranking in zip(cases, rankings)
+    ) / len(cases)
+
+
+def passage_recall(
+    rankings: list[list[str]], cases: list[dict], top_k: int
+) -> float:
+    """计算每个问题所需目标段落的平均覆盖比例。"""
+
+    return sum(
+        len(set(case_targets(case)) & set(ranking[:top_k]))
+        / len(case_targets(case))
+        for case, ranking in zip(cases, rankings)
+    ) / len(cases)
+
+
+def all_recall(rankings: list[list[str]], cases: list[dict], top_k: int) -> float:
+    """计算所有必需目标段落都进入前 K 的 All@K。"""
+
+    return sum(
+        set(case_targets(case)).issubset(set(ranking[:top_k]))
         for case, ranking in zip(cases, rankings)
     ) / len(cases)
 
@@ -106,7 +135,7 @@ def run_v0(payload: dict, args, top_k: int) -> dict:
     command = [
         str(args.v0_python.resolve()),
         "-B",
-        str(Path(__file__).with_name("run_v0_isolated.py")),
+        str(Path(__file__).with_name("run_v0_retrieval_eval.py")),
         "--source",
         str(args.v0_source.resolve()),
         "--payload",
@@ -178,8 +207,8 @@ def main() -> None:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=5,
-        help="当前版本和 v0 的统一返回深度；默认 5 以覆盖 Recall@5",
+        default=15,
+        help="当前版本和 v0 的统一返回深度；默认 15 以覆盖 Recall@15",
     )
     args = parser.parse_args()
     payload = json.loads(args.payload.read_text(encoding="utf-8"))
@@ -187,23 +216,47 @@ def main() -> None:
     cases = payload["cases"]
     if not cases:
         raise RuntimeError("评测载荷没有 cases")
-    if args.top_k < 5:
-        raise ValueError("--top-k 至少为 5，否则无法计算 Recall@5")
+    if args.top_k < 15:
+        raise ValueError("--top-k 至少为 15，否则无法计算 Recall@15")
     logger.disable("src.common.document_processing.pdf_parser")
     current = run_current(payload, cases, args.top_k)
     v0 = run_v0(payload, args, args.top_k)
+    multihop = any("target_texts" in case for case in cases)
     print(
         f"cases={len(cases)} current_index={current['index_seconds']:.2f}s "
         f"v0_index={v0['index_seconds']:.2f}s"
     )
-    for top_k in (1, 3, 5):
-        print(
-            f"Recall@{top_k}: "
-            f"vector={recall(current['rankings']['vector'], cases, top_k):.3f} "
-            f"hybrid_rrf={recall(current['rankings']['hybrid'], cases, top_k):.3f} "
-            f"current_linear_local={recall(current['rankings']['linear_local'], cases, top_k):.3f} "
-            f"v0={recall(v0['rankings'], cases, top_k):.3f}"
-        )
+    for top_k in (1, 3, 5, 8, 10, 15):
+        if multihop:
+            print(
+                f"Any@{top_k}: "
+                f"vector={any_recall(current['rankings']['vector'], cases, top_k):.3f} "
+                f"hybrid_rrf={any_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"current_linear_local={any_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
+                f"v0={any_recall(v0['rankings'], cases, top_k):.3f}"
+            )
+            print(
+                f"PassageRecall@{top_k}: "
+                f"vector={passage_recall(current['rankings']['vector'], cases, top_k):.3f} "
+                f"hybrid_rrf={passage_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"current_linear_local={passage_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
+                f"v0={passage_recall(v0['rankings'], cases, top_k):.3f}"
+            )
+            print(
+                f"All@{top_k}: "
+                f"vector={all_recall(current['rankings']['vector'], cases, top_k):.3f} "
+                f"hybrid_rrf={all_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"current_linear_local={all_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
+                f"v0={all_recall(v0['rankings'], cases, top_k):.3f}"
+            )
+        else:
+            print(
+                f"Recall@{top_k}: "
+                f"vector={any_recall(current['rankings']['vector'], cases, top_k):.3f} "
+                f"hybrid_rrf={any_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"current_linear_local={any_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
+                f"v0={any_recall(v0['rankings'], cases, top_k):.3f}"
+            )
     print(
         f"median query: vector={statistics.median(current['timings']['vector']):.3f}s "
         f"hybrid_rrf={statistics.median(current['timings']['hybrid']):.3f}s "
@@ -211,27 +264,43 @@ def main() -> None:
         f"v0={statistics.median(v0['timings']):.3f}s"
     )
     for index, case in enumerate(cases):
-        vector_rank = (
-            current["rankings"]["vector"][index].index(case["target_text"]) + 1
-            if case["target_text"] in current["rankings"]["vector"][index] else "-"
-        )
-        hybrid_rank = (
-            current["rankings"]["hybrid"][index].index(case["target_text"]) + 1
-            if case["target_text"] in current["rankings"]["hybrid"][index] else "-"
-        )
-        current_rank = (
-            current["rankings"]["linear_local"][index].index(case["target_text"]) + 1
-            if case["target_text"] in current["rankings"]["linear_local"][index] else "-"
-        )
-        v0_rank = (
-            v0["rankings"][index].index(case["target_text"]) + 1
-            if case["target_text"] in v0["rankings"][index] else "-"
-        )
-        print(
-            f"case={index} entity={case['entity']} "
-            f"vector_rank={vector_rank} hybrid_rank={hybrid_rank} "
-            f"current_rank={current_rank} v0_rank={v0_rank}"
-        )
+        if multihop:
+            def ranks_for(ranking: list[str]) -> list[int | str]:
+                return [
+                    ranking.index(target) + 1 if target in ranking else "-"
+                    for target in case_targets(case)
+                ]
+
+            print(
+                f"case={index} hops={case.get('hop_entities')} "
+                f"bridge={case.get('bridge_entity')} "
+                f"vector_ranks={ranks_for(current['rankings']['vector'][index])} "
+                f"hybrid_ranks={ranks_for(current['rankings']['hybrid'][index])} "
+                f"current_ranks={ranks_for(current['rankings']['linear_local'][index])} "
+                f"v0_ranks={ranks_for(v0['rankings'][index])}"
+            )
+        else:
+            vector_rank = (
+                current["rankings"]["vector"][index].index(case["target_text"]) + 1
+                if case["target_text"] in current["rankings"]["vector"][index] else "-"
+            )
+            hybrid_rank = (
+                current["rankings"]["hybrid"][index].index(case["target_text"]) + 1
+                if case["target_text"] in current["rankings"]["hybrid"][index] else "-"
+            )
+            current_rank = (
+                current["rankings"]["linear_local"][index].index(case["target_text"]) + 1
+                if case["target_text"] in current["rankings"]["linear_local"][index] else "-"
+            )
+            v0_rank = (
+                v0["rankings"][index].index(case["target_text"]) + 1
+                if case["target_text"] in v0["rankings"][index] else "-"
+            )
+            print(
+                f"case={index} entity={case['entity']} "
+                f"vector_rank={vector_rank} hybrid_rank={hybrid_rank} "
+                f"current_rank={current_rank} v0_rank={v0_rank}"
+            )
 
 
 if __name__ == "__main__":

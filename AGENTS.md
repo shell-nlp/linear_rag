@@ -62,6 +62,11 @@
 - 局部图性能回归使用 `evals/linearrag_local/benchmark_linear_local.py`，分别观察总索引规模、候选段落数和子图扫描规模；不要只测单个小 PDF 或只看 `top_k` 返回耗时。
 - 真实 `v0` 对照代码、PDF/JSON 数据集和运行器固定在 `evals/linearrag_v0/`，性能基准固定在 `evals/linearrag_local/`。后续优化必须复用这些资产并更新 `docs/comparison-v0-local.md`，不得只依赖临时目录或口头结论。
 
+## Backlog
+
+- 待接入公开中文检索评测集，优先评估 `mteb/DuRetrieval`（100,001 篇文档、2,000 条查询、官方 qrels，Apache-2.0）和 `mteb/t2retrieval`（118,605 篇文档、22,812 条查询、官方 qrels，Apache-2.0）。完整榜单口径必须使用官方 corpus、queries、qrels 和 MTEB 的 nDCG@10；如果只跑固定子集，必须明确标记为本地回归结果，不能与官方全量榜单成绩直接比较。
+- 公开集接入后再补充 `Recall@1/3/5/8/10/15` 与 nDCG@10；当前自有 PDF 的 152 条多问法评测只用于本项目算法路径对照，不代表公开榜单成绩。
+
 ## 注释和测试
 
 - 新增或修改的代码必须补中文注释，重点说明职责、参数语义和实现差异。

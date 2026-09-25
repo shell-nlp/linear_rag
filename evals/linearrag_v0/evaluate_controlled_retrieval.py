@@ -1,3 +1,5 @@
+"""用可控语料比较候选召回上限与 linear_local 的局部图排序。"""
+
 from __future__ import annotations
 
 import argparse
@@ -176,11 +178,11 @@ def run(groups: int, candidate_count: int) -> None:
             vector_times.append(time.perf_counter() - started)
             vector_rankings.append([hit.id for hit in hits])
             started = time.perf_counter()
-            results = retriever.retrieve(case.question, [index_name], 5, local=True)
+            results = retriever.retrieve(case.question, [index_name], 15, local=True)
             local_times.append(time.perf_counter() - started)
             local_rankings.append([item["hash_id"] for item in results])
         print(f"cases={len(cases)} passages={groups * 3} candidates={candidate_count}")
-        for top_k in (1, 3, 5):
+        for top_k in (1, 3, 5, 8, 10, 15):
             print(
                 f"Recall@{top_k}: vector={recall(vector_rankings, cases, top_k):.3f} "
                 f"v0-candidate-ceiling={recall(vector_rankings, cases, candidate_count):.3f} "
