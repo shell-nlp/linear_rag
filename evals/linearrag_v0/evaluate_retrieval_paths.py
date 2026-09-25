@@ -77,6 +77,7 @@ def run_current(payload: dict, cases: list[dict], top_k: int) -> dict:
     rankings = {
         SearchMode.VECTOR.value: [],
         SearchMode.HYBRID.value: [],
+        SearchMode.LINEAR.value: [],
         SearchMode.LINEAR_LOCAL.value: [],
     }
     timings = {mode: [] for mode in rankings}
@@ -108,16 +109,20 @@ def run_current(payload: dict, cases: list[dict], top_k: int) -> dict:
                     [hit.document.text for hit in hits]
                 )
 
-            started = time.perf_counter()
-            hits = retriever.retrieve(
-                case["question"], [index_name], top_k, local=True
-            )
-            timings[SearchMode.LINEAR_LOCAL.value].append(
-                time.perf_counter() - started
-            )
-            rankings[SearchMode.LINEAR_LOCAL.value].append(
-                [hit.get("text", "") for hit in hits]
-            )
+            for search_mode in (SearchMode.LINEAR, SearchMode.LINEAR_LOCAL):
+                started = time.perf_counter()
+                hits = retriever.retrieve(
+                    case["question"],
+                    [index_name],
+                    top_k,
+                    local=search_mode == SearchMode.LINEAR_LOCAL,
+                )
+                timings[search_mode.value].append(
+                    time.perf_counter() - started
+                )
+                rankings[search_mode.value].append(
+                    [hit.get("text", "") for hit in hits]
+                )
         return {
             "index_seconds": index_seconds,
             "rankings": rankings,
@@ -232,6 +237,7 @@ def main() -> None:
                 f"Any@{top_k}: "
                 f"vector={any_recall(current['rankings']['vector'], cases, top_k):.3f} "
                 f"hybrid_rrf={any_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"linear={any_recall(current['rankings']['linear'], cases, top_k):.3f} "
                 f"current_linear_local={any_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
                 f"v0={any_recall(v0['rankings'], cases, top_k):.3f}"
             )
@@ -239,6 +245,7 @@ def main() -> None:
                 f"PassageRecall@{top_k}: "
                 f"vector={passage_recall(current['rankings']['vector'], cases, top_k):.3f} "
                 f"hybrid_rrf={passage_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"linear={passage_recall(current['rankings']['linear'], cases, top_k):.3f} "
                 f"current_linear_local={passage_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
                 f"v0={passage_recall(v0['rankings'], cases, top_k):.3f}"
             )
@@ -246,6 +253,7 @@ def main() -> None:
                 f"All@{top_k}: "
                 f"vector={all_recall(current['rankings']['vector'], cases, top_k):.3f} "
                 f"hybrid_rrf={all_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"linear={all_recall(current['rankings']['linear'], cases, top_k):.3f} "
                 f"current_linear_local={all_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
                 f"v0={all_recall(v0['rankings'], cases, top_k):.3f}"
             )
@@ -254,12 +262,14 @@ def main() -> None:
                 f"Recall@{top_k}: "
                 f"vector={any_recall(current['rankings']['vector'], cases, top_k):.3f} "
                 f"hybrid_rrf={any_recall(current['rankings']['hybrid'], cases, top_k):.3f} "
+                f"linear={any_recall(current['rankings']['linear'], cases, top_k):.3f} "
                 f"current_linear_local={any_recall(current['rankings']['linear_local'], cases, top_k):.3f} "
                 f"v0={any_recall(v0['rankings'], cases, top_k):.3f}"
             )
     print(
         f"median query: vector={statistics.median(current['timings']['vector']):.3f}s "
         f"hybrid_rrf={statistics.median(current['timings']['hybrid']):.3f}s "
+        f"linear={statistics.median(current['timings']['linear']):.3f}s "
         f"current_linear_local={statistics.median(current['timings']['linear_local']):.3f}s "
         f"v0={statistics.median(v0['timings']):.3f}s"
     )
@@ -276,6 +286,7 @@ def main() -> None:
                 f"bridge={case.get('bridge_entity')} "
                 f"vector_ranks={ranks_for(current['rankings']['vector'][index])} "
                 f"hybrid_ranks={ranks_for(current['rankings']['hybrid'][index])} "
+                f"linear_ranks={ranks_for(current['rankings']['linear'][index])} "
                 f"current_ranks={ranks_for(current['rankings']['linear_local'][index])} "
                 f"v0_ranks={ranks_for(v0['rankings'][index])}"
             )
@@ -292,6 +303,10 @@ def main() -> None:
                 current["rankings"]["linear_local"][index].index(case["target_text"]) + 1
                 if case["target_text"] in current["rankings"]["linear_local"][index] else "-"
             )
+            linear_rank = (
+                current["rankings"]["linear"][index].index(case["target_text"]) + 1
+                if case["target_text"] in current["rankings"]["linear"][index] else "-"
+            )
             v0_rank = (
                 v0["rankings"][index].index(case["target_text"]) + 1
                 if case["target_text"] in v0["rankings"][index] else "-"
@@ -299,7 +314,8 @@ def main() -> None:
             print(
                 f"case={index} entity={case['entity']} "
                 f"vector_rank={vector_rank} hybrid_rank={hybrid_rank} "
-                f"current_rank={current_rank} v0_rank={v0_rank}"
+                f"linear_rank={linear_rank} current_rank={current_rank} "
+                f"v0_rank={v0_rank}"
             )
 
 

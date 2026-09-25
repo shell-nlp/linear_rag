@@ -4,8 +4,8 @@
 
 ## 目录
 
-- `linearrag_v0/`：纯向量、Hybrid-RRF、当前 `linear_local` 与实际 `v0`
-  Neo4j/GDS 路径的同口径对比。
+- `linearrag_v0/`：纯向量、Hybrid-RRF、全图 `linear`、`linear_local` 与实际
+  `v0` Neo4j/GDS 路径的同口径对比。
 - `linearrag_local/`：当前版本在不同索引规模和候选规模下的局部图性能基准。
 
 ## 数据集

@@ -13,7 +13,8 @@
 ## 脚本
 
 - `build_pdf_eval_dataset.py`：从固定 PDF 生成单目标或多问法评测载荷。
-- `evaluate_retrieval_paths.py`：统一比较纯向量、Hybrid-RRF、`linear_local` 和 v0。
+- `evaluate_retrieval_paths.py`：统一比较纯向量、Hybrid-RRF、全图 `linear`、
+  `linear_local` 和 v0。
 - `run_v0_retrieval_eval.py`：在隔离 Python 环境运行 v0 的真实 ES/Neo4j/GDS 路径。
 - `extract_v0_source.py`：从当前仓库的 `v0` tag 抽取隔离运行源码。
 - `evaluate_controlled_retrieval.py`：在可控语料上验证候选上限与局部图排序。
